@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { PRODUCTS } from "@/lib/mockData";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { db, isMock } = await connectToDatabase();
 
   if (isMock) {
@@ -13,7 +13,15 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(req.url);
+    const force = searchParams.get("force") === "true";
     const productsCollection = db!.collection("products");
+
+    if (force) {
+      console.log("Force re-seeding: Clearing existing products...");
+      await productsCollection.deleteMany({});
+    }
+
     const count = await productsCollection.countDocuments();
 
     if (count === 0) {
@@ -41,6 +49,6 @@ export async function GET() {
     );
   }
 }
-export async function POST() {
-  return GET();
+export async function POST(req: NextRequest) {
+  return GET(req);
 }

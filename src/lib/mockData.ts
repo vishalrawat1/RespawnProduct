@@ -278,6 +278,45 @@ export const PRODUCTS: Product[] = [
     qas: [{ id: "q1", question: "Is this shoe washable?", answer: "Hand washing with a damp cloth and mild soap is recommended." }]
   },
   {
+    id: "puma-rs-z",
+    name: "Puma RS-Z Reinvention Sneakers Men",
+    description: "Sharp silhouette and streetwise design language meet in the RS-Z Reinvention sneakers. Part of the iconic Running System (RS) family, this shoe features a breathable mesh upper with premium suede and synthetic leather overlays, a PU midsole for lightweight cushioning, and a durable rubber outsole.",
+    price: 4999,
+    mrp: 9999,
+    rating: 4.4,
+    ratingCount: 350,
+    category: "fashion",
+    image: "https://rukminim2.flixcart.com/image/480/640/xif0q/shoe/p/f/k/-original-imah852np7yscyzp.jpeg?q=90",
+    thumbnails: [
+      "https://rukminim2.flixcart.com/image/480/640/xif0q/shoe/p/f/k/-original-imah852np7yscyzp.jpeg?q=90"
+    ],
+    variations: [
+      { name: "Size (UK)", options: ["7", "8", "9", "10"] },
+      { name: "Color", options: ["Puma White-Puma Black", "Blue/White/Black"] }
+    ],
+    specs: {
+      "Brand": "Puma",
+      "Model Name": "RS-Z Reinvention",
+      "Material": "Mesh, Suede & Leather Overlays",
+      "Closure": "Lace-Up",
+      "Sole": "Rubber",
+      "Midsole": "PU Cushioning Midsole",
+      "Type": "Sneakers"
+    },
+    whatInBox: ["1 Pair of Sneakers"],
+    isPrime: true,
+    isBestSeller: true,
+    isChoice: false,
+    stock: 20,
+    seller: "Appario Retail Private Ltd",
+    reviews: [
+      { id: "r1", userName: "Aarav M.", rating: 5, date: "28 May 2026", title: "Excellent Comfort and Style", text: "The RS cushioning is amazing. Very lightweight and looks extremely premium. Totally recommend it!", helpfulVotes: 15 }
+    ],
+    qas: [
+      { id: "q1", question: "Is this model suitable for running?", answer: "While it is part of the Running System family, it is designed primarily as a casual lifestyle sneaker." }
+    ]
+  },
+  {
     id: "levis-511-jeans",
     name: "Levi's Men's 511 Slim Fit Jeans - Dark Indigo Stretch",
     description: "The 511 Slim Fit Jeans sit below the waist with a slim fit from hip to ankle. Made with Flex technology for comfortable stretch that moves with you all day.",
