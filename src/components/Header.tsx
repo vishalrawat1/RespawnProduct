@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/AppContext";
 import { SIMULATED_ACCOUNTS, CATEGORIES } from "@/lib/mockData";
+import { analyzeImage, AnalysisResult } from "@/lib/imageAnalyzer";
 import { 
   Search, 
   MapPin, 
@@ -46,7 +47,52 @@ export default function Header() {
   const [editingPincode, setEditingPincode] = useState(false);
   const [pinInput, setPinInput] = useState(pincode);
 
+  // Voice & Image Search details
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceError, setVoiceError] = useState("");
+  const [uploadedImageSrc, setUploadedImageSrc] = useState<string | null>(null);
+  const [imageAnalysis, setImageAnalysis] = useState<AnalysisResult | null>(null);
+  const [imageScanning, setImageScanning] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   const searchRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const countdownTimerRef = useRef<any>(null);
+  const countdownIntervalRef = useRef<any>(null);
+
+  // Clear timers on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  const closeVoiceSearch = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setVoiceSearchActive(false);
+    setVoiceTranscript("");
+    setVoiceError("");
+  };
+
+  const closeImageSearch = () => {
+    if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setImageSearchActive(false);
+    setUploadedImageSrc(null);
+    setImageAnalysis(null);
+    setImageScanning(false);
+    setCountdown(null);
+  };
 
   // Close search suggestions on click outside
   useEffect(() => {
@@ -68,7 +114,13 @@ export default function Header() {
     const sampleKeywords = [
       "echo", "dot", "alexa", "kindle", "paperwhite", "iphone", 
       "apple", "sony", "headphones", "asus", "laptop", "gaming", 
-      "nike", "shoes", "running", "instant pot", "cooker", "books", "atomic habits"
+      "nike", "shoes", "running", "instant pot", "cooker", "books", "atomic habits",
+      "samsung", "galaxy", "ipad", "jbl", "speaker", "realme", "buds", "earbuds", 
+      "levis", "jeans", "rayban", "sunglasses", "casio", "watch", "puma", "tshirt", 
+      "boat", "smartwatch", "dyson", "fan", "philips", "mixer", "prestige", "induction", 
+      "milton", "flask", "bottle", "yoga", "mat", "dumbbell", "gym", "yonex", 
+      "badminton", "racket", "football", "psychology", "money", "sapiens", "ikigai", 
+      "rich dad", "fire tv", "ring", "doorbell", "echo show"
     ];
     const filtered = sampleKeywords.filter((k) =>
       k.toLowerCase().includes(searchQuery.toLowerCase())
@@ -96,22 +148,127 @@ export default function Header() {
   };
 
   const startVoiceSearch = () => {
+    setVoiceTranscript("");
+    setVoiceError("");
     setVoiceSearchActive(true);
-    // Simulate voice recognition
-    setTimeout(() => {
-      setSearchQuery("Sony headphones");
-      setVoiceSearchActive(false);
-      router.push("/search?q=Sony%20headphones");
-    }, 2500);
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceError("Speech recognition is not supported in this browser.");
+      // Fallback simulation
+      setTimeout(() => {
+        setVoiceTranscript("Sony headphones");
+        setTimeout(() => {
+          setSearchQuery("Sony headphones");
+          setVoiceSearchActive(false);
+          router.push("/search?q=Sony%20headphones");
+        }, 1000);
+      }, 1500);
+      return;
+    }
+
+    try {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = "en-IN";
+
+      rec.onstart = () => {
+        setVoiceTranscript("Listening...");
+      };
+
+      rec.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setVoiceError(`Error: ${event.error}`);
+      };
+
+      rec.onresult = (event: any) => {
+        const current = event.resultIndex;
+        const transcript = event.results[current][0].transcript;
+        setVoiceTranscript(transcript);
+      };
+
+      rec.onend = () => {
+        setVoiceTranscript(prev => {
+          if (prev && prev !== "Listening...") {
+            setTimeout(() => {
+              setSearchQuery(prev);
+              setVoiceSearchActive(false);
+              router.push(`/search?q=${encodeURIComponent(prev)}`);
+            }, 1000);
+          } else {
+            setVoiceError("No speech detected. Try again.");
+            setTimeout(() => {
+              setVoiceSearchActive(false);
+            }, 2000);
+          }
+          return prev;
+        });
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    } catch (err: any) {
+      setVoiceError(`Could not start: ${err.message}`);
+    }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setImageSearchActive(false);
-      // Simulate image matching
-      setSearchQuery("Kindle");
-      router.push("/search?q=Kindle");
+      const file = e.target.files[0];
+      
+      if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      setUploadedImageSrc(null);
+      setImageAnalysis(null);
+      setCountdown(null);
+      
+      setImageScanning(true);
+      
+      const dataUrl = URL.createObjectURL(file);
+      setUploadedImageSrc(dataUrl);
+
+      try {
+        const result = await analyzeImage(file);
+        
+        setTimeout(() => {
+          setImageScanning(false);
+          setImageAnalysis(result);
+          
+          if (result.matchingKeywords && result.matchingKeywords.length > 0) {
+            const firstKeyword = result.matchingKeywords[0];
+            let timeRemaining = 3000;
+            setCountdown(timeRemaining);
+            
+            countdownIntervalRef.current = setInterval(() => {
+              timeRemaining -= 100;
+              setCountdown(timeRemaining);
+              if (timeRemaining <= 0) {
+                if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+              }
+            }, 100);
+
+            countdownTimerRef.current = setTimeout(() => {
+              setSearchQuery(firstKeyword);
+              closeImageSearch();
+              router.push(`/search?q=${encodeURIComponent(firstKeyword)}`);
+            }, 3000);
+          }
+        }, 1500);
+
+      } catch (err) {
+        console.error("Image analysis error", err);
+        setImageScanning(false);
+      }
     }
+  };
+
+  const handleTagClick = (tag: string) => {
+    if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setSearchQuery(tag);
+    closeImageSearch();
+    router.push(`/search?q=${encodeURIComponent(tag)}`);
   };
 
   const handlePincodeSubmit = (e: React.FormEvent) => {
@@ -445,12 +602,28 @@ export default function Header() {
       {/* Voice Search Dialog */}
       {voiceSearchActive && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1001 }}>
-          <div style={{ backgroundColor: "#fff", padding: "40px", borderRadius: "8px", textAlign: "center", minWidth: "300px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
-            <div style={{ width: "70px", height: "70px", borderRadius: "50%", backgroundColor: "#fbe8e7", display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center", margin: "0 auto 20px auto" }} className="pulse-mic">
+          <div style={{ backgroundColor: "#fff", padding: "40px 30px", borderRadius: "8px", textAlign: "center", minWidth: "320px", maxWidth: "400px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", position: "relative" }}>
+            <button 
+              style={{ position: "absolute", top: "15px", right: "15px", background: "none", cursor: "pointer", border: "none" }} 
+              onClick={closeVoiceSearch}
+              title="Close"
+            >
+              <X size={20} color="#555" />
+            </button>
+            <div style={{ width: "70px", height: "70px", borderRadius: "50%", backgroundColor: "#fbe8e7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px auto" }} className="pulse-mic">
               <Mic size={32} color="var(--price-color)" />
             </div>
-            <h3 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "8px" }}>Listening...</h3>
-            <p style={{ color: "#666" }}>Try saying "Sony headphones"</p>
+            <h3 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "8px" }}>
+              {voiceError ? "Voice Search Error" : "Listening..."}
+            </h3>
+            <div className="voice-transcript-text">
+              {voiceTranscript || "Speak now..."}
+            </div>
+            {voiceError ? (
+              <div className="voice-error-text">{voiceError}</div>
+            ) : (
+              <p style={{ color: "#666", fontSize: "12px" }}>Try saying names of brands, products, or categories</p>
+            )}
           </div>
         </div>
       )}
@@ -458,25 +631,140 @@ export default function Header() {
       {/* Image Search Dialog */}
       {imageSearchActive && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1001 }}>
-          <div style={{ backgroundColor: "#fff", padding: "30px", borderRadius: "8px", maxWidth: "400px", width: "90%", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+          <div style={{ backgroundColor: "#fff", padding: "24px", borderRadius: "8px", maxWidth: "450px", width: "90%", boxShadow: "0 4px 20px rgba(0,0,0,0.3)", position: "relative" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-              <h3 style={{ fontSize: "18px", fontWeight: "700" }}>Search by Image</h3>
-              <button style={{ background: "none" }} onClick={() => setImageSearchActive(false)}><X size={20} /></button>
+              <h3 style={{ fontSize: "18px", fontWeight: "700" }}>Smart Camera & Image Search</h3>
+              <button style={{ background: "none" }} onClick={closeImageSearch}><X size={20} /></button>
             </div>
-            <p style={{ color: "#666", fontSize: "13px", marginBottom: "20px" }}>Upload a photo of any item (e.g. books, kindle) to search on Respawn.</p>
-            <div style={{ border: "2px dashed #ccc", padding: "30px", borderRadius: "6px", textAlign: "center", backgroundColor: "#fafafa" }}>
-              <input 
-                type="file" 
-                accept="image/*" 
-                id="image-search-upload" 
-                style={{ display: "none" }} 
-                onChange={handleImageUpload}
-              />
-              <label htmlFor="image-search-upload" style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                <Camera size={40} color="#888" />
-                <span className="btn-gray" style={{ padding: "6px 12px", borderRadius: "4px" }}>Select Image File</span>
-              </label>
-            </div>
+            
+            {!uploadedImageSrc ? (
+              <>
+                <p style={{ color: "#666", fontSize: "13px", marginBottom: "20px" }}>
+                  Upload a photo of any item (e.g. shoes, book, gadget) to scan and find similar products on Respawn.
+                </p>
+                <div style={{ border: "2px dashed #ccc", padding: "40px 20px", borderRadius: "6px", textAlign: "center", backgroundColor: "#fafafa" }}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    id="image-search-upload" 
+                    style={{ display: "none" }} 
+                    onChange={handleImageUpload}
+                  />
+                  <label htmlFor="image-search-upload" style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                    <Camera size={44} color="#888" />
+                    <span className="btn-gray" style={{ padding: "8px 16px", borderRadius: "4px", fontSize: "13px", fontWeight: "600" }}>Select Image File</span>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {/* Visual Preview */}
+                <div className="camera-preview-container">
+                  <img src={uploadedImageSrc} alt="Scanning source" className="camera-preview-img" />
+                  {imageScanning && <div className="scan-line" />}
+                </div>
+
+                {imageScanning && (
+                  <div style={{ textAlign: "center", padding: "10px 0" }}>
+                    <div style={{ fontWeight: 600, color: "var(--amazon-blue-gray)" }}>Analyzing visual properties...</div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>Scanning color histograms & aspect ratios</div>
+                  </div>
+                )}
+
+                {imageAnalysis && (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div className="analysis-results-box">
+                      <h4>Scan Results</h4>
+                      <p style={{ fontSize: "13px", margin: "4px 0" }}>
+                        <strong>Detected Profile:</strong> {imageAnalysis.detectedType.replace("-", " ")}
+                      </p>
+                      
+                      <div style={{ fontSize: "13px", marginTop: "8px" }}>
+                        <strong>Dominant Colors:</strong>
+                        <div className="color-swatches-list">
+                          {imageAnalysis.dominantColors.map((col: string, idx: number) => {
+                            const hex = imageAnalysis.colorHexes[idx] || "#ccc";
+                            return (
+                              <div key={idx} className="color-swatch-pill">
+                                <span className="color-swatch-dot" style={{ backgroundColor: hex }} />
+                                {col}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: "15px" }}>
+                      <h4 style={{ fontSize: "14px", fontWeight: 700, marginBottom: "8px" }}>Matching Products</h4>
+                      <p style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+                        Click a tag to search immediately:
+                      </p>
+                      <div className="matching-tags-list">
+                        {imageAnalysis.matchingKeywords.map((tag: string, idx: number) => (
+                          <button 
+                            key={idx} 
+                            className="match-tag"
+                            onClick={() => handleTagClick(tag)}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {countdown !== null && countdown > 0 && (
+                      <div style={{ background: "#fff8f2", border: "1px solid #fbd8b4", borderRadius: "6px", padding: "12px", fontSize: "13px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                          <span>Searching for <strong>{imageAnalysis.matchingKeywords[0]}</strong> in <strong>{Math.ceil(countdown / 1000)}s</strong>...</span>
+                          <button 
+                            onClick={() => {
+                              if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
+                              if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                              setCountdown(null);
+                            }}
+                            style={{ background: "none", color: "#c7511f", fontWeight: "600", fontSize: "11px", textDecoration: "underline" }}
+                          >
+                            Pause Auto-Search
+                          </button>
+                        </div>
+                        <div className="countdown-progress-bar-container">
+                          <div 
+                            className="countdown-progress-bar-fill" 
+                            style={{ width: `${(countdown / 3000) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "15px", gap: "10px" }}>
+                      <button 
+                        className="btn-gray" 
+                        style={{ padding: "8px 16px", flexGrow: 1, fontSize: "13px" }}
+                        onClick={() => {
+                          setUploadedImageSrc(null);
+                          setImageAnalysis(null);
+                          setCountdown(null);
+                        }}
+                      >
+                        Scan Another Image
+                      </button>
+                      <button 
+                        className="btn-primary" 
+                        style={{ padding: "8px 16px", flexGrow: 1, fontSize: "13px" }}
+                        onClick={() => {
+                          if (imageAnalysis.matchingKeywords.length > 0) {
+                            handleTagClick(imageAnalysis.matchingKeywords[0]);
+                          }
+                        }}
+                      >
+                        Search Top Match
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
