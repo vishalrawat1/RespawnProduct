@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { analyzeReturnRequest } from "../../../../../backend/analyzer";
+import { MOCK_RETURNS } from "../route";
+import { MOCK_ORDERS } from "../../orders/route";
 
 export async function POST(req: Request) {
   try {
@@ -41,6 +43,15 @@ export async function POST(req: Request) {
         );
       } catch (dbErr) {
         console.error("Database persistence failed, returning mock response:", dbErr);
+      }
+    } else {
+      // Save to mock memory storage
+      MOCK_RETURNS.push(assessment);
+      
+      // Update corresponding mock order status
+      const orderIdx = MOCK_ORDERS.findIndex((o) => o.id === orderId);
+      if (orderIdx !== -1) {
+        MOCK_ORDERS[orderIdx].status = "Returned";
       }
     }
 

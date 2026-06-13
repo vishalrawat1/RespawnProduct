@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 
 // Memory storage for Mock Mode
-const MOCK_ORDERS: any[] = [
+export const MOCK_ORDERS: any[] = [
   {
     id: "ord-1001",
     userName: "Vishal Rawat",
