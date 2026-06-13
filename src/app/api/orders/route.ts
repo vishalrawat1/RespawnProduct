@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { orderId, status, cancelReason, cancelDetails, returnReason } = body;
+    const { orderId, status, cancelReason, cancelDetails, returnReason, estimatedDelivery } = body;
 
     if (!orderId) {
       return NextResponse.json({ status: "error", message: "Order ID is required." }, { status: 400 });
@@ -123,7 +123,8 @@ export async function PUT(req: NextRequest) {
     if (isMock) {
       const idx = MOCK_ORDERS.findIndex((o) => o.id === orderId);
       if (idx !== -1) {
-        MOCK_ORDERS[idx].status = status;
+        if (status !== undefined) MOCK_ORDERS[idx].status = status;
+        if (estimatedDelivery !== undefined) MOCK_ORDERS[idx].estimatedDelivery = estimatedDelivery;
         if (cancelReason !== undefined) MOCK_ORDERS[idx].cancelReason = cancelReason;
         if (cancelDetails !== undefined) MOCK_ORDERS[idx].cancelDetails = cancelDetails;
         if (returnReason !== undefined) MOCK_ORDERS[idx].returnReason = returnReason;
@@ -133,7 +134,9 @@ export async function PUT(req: NextRequest) {
     }
 
     const ordersCollection = db!.collection("orders");
-    const updateFields: any = { status };
+    const updateFields: any = {};
+    if (status !== undefined) updateFields.status = status;
+    if (estimatedDelivery !== undefined) updateFields.estimatedDelivery = estimatedDelivery;
     if (cancelReason !== undefined) updateFields.cancelReason = cancelReason;
     if (cancelDetails !== undefined) updateFields.cancelDetails = cancelDetails;
     if (returnReason !== undefined) updateFields.returnReason = returnReason;

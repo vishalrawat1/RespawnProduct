@@ -81,6 +81,13 @@ export default function OrdersPage() {
     itemName: string; 
     itemImage: string; 
   } | null>(null);
+
+  const [respawnItem, setRespawnItem] = useState<{
+    orderId: string;
+    productId: string;
+    itemName: string;
+    itemImage: string;
+  } | null>(null);
   
   const [returnReason, setReturnReason] = useState("");
   const [comments, setComments] = useState("");
@@ -199,6 +206,27 @@ export default function OrdersPage() {
     finally { setCancellingOrderId(null); setCancelReason(""); setCancelComment(""); }
   };
 
+  const updateOrderStatus = async (orderId: string, newStatus: Order["status"]) => {
+    try {
+      const res = await fetch("/api/orders", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, status: newStatus })
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setOrders(prevOrders => 
+          prevOrders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
+        );
+      } else {
+        alert("Failed to update status: " + data.message);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update status.");
+    }
+  };
+
   const handleBuyAgain = (items: OrderItem[]) => {
     items.forEach(item => addToCart({ id: item.id, name: item.name, price: item.price, mrp: item.price * 1.2, quantity: item.quantity, image: item.image, variation: item.variation, isPrime: true }));
     alert("Added all items back to your shopping cart!");
@@ -223,7 +251,7 @@ export default function OrdersPage() {
   // Initiate AI return scanning
   const startAIScan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedPhotos.length < 3) {
+    if (returnReason !== "defective_damaged" && selectedPhotos.length < 3) {
       alert("Please upload at least 3 photos for the AI Quality Inspector.");
       return;
     }
@@ -264,7 +292,9 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: returnReason,
           comments: comments,
-          uploadedImages: selectedPhotos.map((_, idx) => `image_${idx + 1}.jpg`)
+          uploadedImages: selectedPhotos.length > 0 
+            ? selectedPhotos.map((_, idx) => `image_${idx + 1}.jpg`) 
+            : ["defective_claim.jpg"]
         })
       });
 
@@ -477,19 +507,54 @@ export default function OrdersPage() {
                     </button>
                   )}
 
-                  {order.status === "Delivered" && (
-                    <button 
-                      className="btn-gray" 
-                      onClick={() => setReturningItem({ 
-                        orderId: order.id, 
-                        productId: order.items[0].id,
-                        itemName: order.items[0].name,
-                        itemImage: order.items[0].image
-                      })}
-                    >
-                      Return or replace items
-                    </button>
-                  )}
+                  {order.status === "Delivered" && (() => {
+                    const deliveryDate = new Date(order.estimatedDelivery);
+                    const daysSinceDelivery = Math.floor((Date.now() - deliveryDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const isWithin7Days = daysSinceDelivery <= 7;
+
+                    if (isWithin7Days) {
+                      return (
+                        <button 
+                          className="btn-gray" 
+                          onClick={() => setReturningItem({ 
+                            orderId: order.id, 
+                            productId: order.items[0].id,
+                            itemName: order.items[0].name,
+                            itemImage: order.items[0].image
+                          })}
+                        >
+                          Return or replace items
+                        </button>
+                      );
+                    } else {
+                      return (
+                        <button 
+                          style={{
+                            background: "linear-gradient(135deg, #111 0%, #2c3e50 100%)",
+                            color: "#fff",
+                            fontWeight: "700",
+                            border: "none",
+                            borderRadius: "3px",
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px"
+                          }}
+                          onClick={() => setRespawnItem({ 
+                            orderId: order.id, 
+                            productId: order.items[0].id,
+                            itemName: order.items[0].name,
+                            itemImage: order.items[0].image
+                          })}
+                        >
+                          ♻️ RESPawn
+                        </button>
+                      );
+                    }
+                  })()}
 
                   <Link href={`/products/${order.items[0].id}`} className="btn-gray" style={{ display: "block", textAlign: "center", padding: "10px", fontSize: "13px" }}>
                     Write a product review
@@ -505,6 +570,88 @@ export default function OrdersPage() {
                   <h4 style={{ fontSize: "15px", fontWeight: "700", marginBottom: "16px", color: "#111" }}>
                     📦 Shipment Tracking
                   </h4>
+
+                  {/* Simulation Dropdown */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "20px",
+                    padding: "12px 16px",
+                    backgroundColor: "#fff",
+                    border: "1px solid #ff9900",
+                    borderRadius: "6px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                  }}>
+                    <div>
+                      <strong style={{ fontSize: "13px", color: "#111", display: "block" }}>⚙️ Package Simulation</strong>
+                      <span style={{ fontSize: "11px", color: "#666" }}>Change package stage to simulate delivery.</span>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <select
+                        value={order.status}
+                        onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: "4px",
+                          border: "1px solid #ff9900",
+                          fontSize: "12px",
+                          fontWeight: "700",
+                          backgroundColor: "#fff",
+                          color: "#111",
+                          cursor: "pointer",
+                          outline: "none"
+                        }}
+                      >
+                        <option value="Ordered">Ordered</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Out for Delivery">Out for Delivery</option>
+                        <option value="Delivered">Delivered</option>
+                      </select>
+
+                      {order.status === "Delivered" && (() => {
+                        const deliveryDate = new Date(order.estimatedDelivery);
+                        const daysSinceDelivery = Math.floor((Date.now() - deliveryDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const isWithin7Days = daysSinceDelivery <= 7;
+                        return (
+                          <select
+                            value={isWithin7Days ? "within" : "after"}
+                            onChange={async (e) => {
+                              const daysAgo = e.target.value === "within" ? 2 : 10;
+                              const newEstDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+                              try {
+                                const res = await fetch("/api/orders", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ orderId: order.id, estimatedDelivery: newEstDate })
+                                });
+                                const data = await res.json();
+                                if (data.status === "success") {
+                                  setOrders(prev => prev.map(o => o.id === order.id ? { ...o, estimatedDelivery: newEstDate } : o));
+                                }
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "4px",
+                              border: "1px solid #ff9900",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              backgroundColor: "#fff",
+                              color: "#111",
+                              cursor: "pointer",
+                              outline: "none"
+                            }}
+                          >
+                            <option value="within">Within 7 Days (Return Period)</option>
+                            <option value="after">After 7 Days (Unlock RESPawn)</option>
+                          </select>
+                        );
+                      })()}
+                    </div>
+                  </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
                     {STATUS_ORDER.map((stage, idx) => {
@@ -661,21 +808,50 @@ export default function OrdersPage() {
                                       <Star size={13} /> Write a Review
                                     </Link>
 
-                                    <button
-                                      onClick={() => setReturningItem({ 
-                                        orderId: order.id, 
-                                        productId: order.items[0].id,
-                                        itemName: order.items[0].name, 
-                                        itemImage: order.items[0].image 
-                                      })}
-                                      style={{
-                                        display: "inline-flex", alignItems: "center", gap: "5px",
-                                        padding: "7px 14px", backgroundColor: "#fff", color: "#0066c0",
-                                        border: "1px solid #0066c0", borderRadius: "20px", fontSize: "12px", fontWeight: "700", cursor: "pointer"
-                                      }}
-                                    >
-                                      Return / Replace
-                                    </button>
+                                    {(() => {
+                                      const deliveryDate = new Date(order.estimatedDelivery);
+                                      const daysSinceDelivery = Math.floor((Date.now() - deliveryDate.getTime()) / (1000 * 60 * 60 * 24));
+                                      const isWithin7Days = daysSinceDelivery <= 7;
+
+                                      if (isWithin7Days) {
+                                        return (
+                                          <button
+                                            onClick={() => setReturningItem({ 
+                                              orderId: order.id, 
+                                              productId: order.items[0].id,
+                                              itemName: order.items[0].name, 
+                                              itemImage: order.items[0].image 
+                                            })}
+                                            style={{
+                                              display: "inline-flex", alignItems: "center", gap: "5px",
+                                              padding: "7px 14px", backgroundColor: "#fff", color: "#0066c0",
+                                              border: "1px solid #0066c0", borderRadius: "20px", fontSize: "12px", fontWeight: "700", cursor: "pointer"
+                                            }}
+                                          >
+                                            Return / Replace
+                                          </button>
+                                        );
+                                      } else {
+                                        return (
+                                          <button
+                                            onClick={() => setRespawnItem({ 
+                                              orderId: order.id, 
+                                              productId: order.items[0].id,
+                                              itemName: order.items[0].name, 
+                                              itemImage: order.items[0].image 
+                                            })}
+                                            style={{
+                                              display: "inline-flex", alignItems: "center", gap: "5px",
+                                              padding: "7px 14px", background: "linear-gradient(135deg, #111 0%, #2c3e50 100%)", color: "#fff",
+                                              border: "none", borderRadius: "20px", fontSize: "12px", fontWeight: "700", cursor: "pointer",
+                                              boxShadow: "0 2px 4px rgba(0,0,0,0.15)"
+                                            }}
+                                          >
+                                            ♻️ RESPawn
+                                          </button>
+                                        );
+                                      }
+                                    })()}
 
                                     <button
                                       onClick={() => handleBuyAgain(order.items)}
@@ -818,8 +994,11 @@ export default function OrdersPage() {
                       </div>
                     ))}
                   </div>
-                  <span style={{ display: "block", marginTop: "6px", fontSize: "11px", color: selectedPhotos.length >= 3 ? "green" : "#b06000", fontWeight: "600" }}>
-                    {selectedPhotos.length} / 5 photos uploaded. (Minimum 3 required)
+                   <span style={{ display: "block", marginTop: "6px", fontSize: "11px", color: returnReason === "defective_damaged" || selectedPhotos.length >= 3 ? "green" : "#b06000", fontWeight: "600" }}>
+                    {returnReason === "defective_damaged" 
+                      ? "✓ Defective Claim: Photos optional. Product will route directly to the manufacturer."
+                      : `${selectedPhotos.length} / 5 photos uploaded. (Minimum 3 required)`
+                    }
                   </span>
                 </div>
 
@@ -841,7 +1020,7 @@ export default function OrdersPage() {
                   type="submit" 
                   className="btn-primary" 
                   style={{ width: "100%", padding: "12px", fontWeight: "700", marginTop: "10px" }}
-                  disabled={selectedPhotos.length < 3 || !returnReason}
+                  disabled={!returnReason || (returnReason !== "defective_damaged" && selectedPhotos.length < 3)}
                 >
                   Initiate AI Return Scan
                 </button>
@@ -910,14 +1089,65 @@ export default function OrdersPage() {
                     ✓ Instant Refund Initiated. Amount will credit back to your original payment method in 1-2 hours.
                   </div>
                 )}
+                {assessmentResult.status === "Approved (Sent to Manufacturer)" && (
+                  <div style={{ backgroundColor: "#e8f0fe", border: "1px solid #1a73e8", color: "#1c3d5a", padding: "12px", borderRadius: "6px", fontSize: "13px", fontWeight: "600" }}>
+                    📦 <strong>Manufacturer RMA Active:</strong> Defective item verified. The system has routed this request directly to the manufacturer's RMA queue. A pre-paid manufacturer return shipping label has been generated.
+                  </div>
+                )}
                 {assessmentResult.status === "Flagged (Manual Review)" && (
                   <div style={{ backgroundColor: "#fef7e0", border: "1px solid #f29900", color: "#b06000", padding: "12px", borderRadius: "6px", fontSize: "13px", fontWeight: "600" }}>
-                    ⚠ Flagged for Agent Check. The sizing/damage anomalies require standard manual warehouse review. Verification completed in 24 hours.
+                    ⚠ Flagged for Agent Check. The image mismatch score exceeds the threshold. A manual warehouse agent check (human review) has been queued to confirm eligibility.
                   </div>
                 )}
                 {assessmentResult.status === "Rejected" && (
                   <div style={{ backgroundColor: "#fce8e6", border: "1px solid #c5221f", color: "#c5221f", padding: "12px", borderRadius: "6px", fontSize: "13px", fontWeight: "600" }}>
                     ✗ Return request rejected. Visual grade score falls below the required threshold for returns processing.
+                  </div>
+                )}
+
+                {/* AI Visual Image Match Validation */}
+                {assessmentResult.analysisMetrics.factoryImage && (
+                  <div style={{ padding: "12px", border: "1px solid #ddd", borderRadius: "6px", backgroundColor: "#fafafa" }}>
+                    <h4 style={{ fontSize: "13px", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+                      🔍 AI Visual Similarity Match Validation
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", alignItems: "center" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", color: "#666", display: "block", marginBottom: "4px", fontWeight: "600" }}>Factory pre-shipment reference image</span>
+                        <div style={{
+                          height: "120px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          backgroundImage: `url(${assessmentResult.analysisMetrics.factoryImage})`,
+                          backgroundSize: "contain",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                          backgroundColor: "#fff"
+                        }}></div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <span style={{ fontSize: "11px", color: "#666", display: "block", marginBottom: "4px", fontWeight: "600" }}>Buyer uploaded return image</span>
+                        <div style={{
+                          height: "120px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          backgroundImage: `url(${selectedPhotos[0] || returningItem.itemImage})`,
+                          backgroundSize: "contain",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                          backgroundColor: "#fff"
+                        }}></div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", padding: "8px", borderRadius: "4px", backgroundColor: assessmentResult.analysisMetrics.mismatchScore > assessmentResult.analysisMetrics.mismatchThreshold ? "#fdf5ea" : "#e6f4ea", border: assessmentResult.analysisMetrics.mismatchScore > assessmentResult.analysisMetrics.mismatchThreshold ? "1px solid #f29900" : "1px solid #137333" }}>
+                      <div>
+                        <span>Mismatch Deviation: <strong>{assessmentResult.analysisMetrics.mismatchScore}%</strong></span>
+                        <span style={{ color: "#666", marginLeft: "10px" }}>Threshold Limit: <strong>{assessmentResult.analysisMetrics.mismatchThreshold}%</strong></span>
+                      </div>
+                      <span style={{ fontWeight: "700", color: assessmentResult.analysisMetrics.mismatchScore > assessmentResult.analysisMetrics.mismatchThreshold ? "#b06000" : "green" }}>
+                        {assessmentResult.analysisMetrics.mismatchScore > assessmentResult.analysisMetrics.mismatchThreshold ? "❌ High Mismatch (Human Check Needed)" : "✓ Matches Reference (Auto-Refund)"}
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1042,6 +1272,101 @@ export default function OrdersPage() {
               <button type="submit" className="btn-primary" style={{ padding: "8px 16px" }}>Confirm Cancellation</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ========================================================
+          RESPAWN TRADE-IN & RECYCLE MODAL
+         ======================================================== */}
+      {respawnItem && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+          <div style={{
+            background: "linear-gradient(135deg, #181824 0%, #101015 100%)",
+            color: "#fff",
+            borderRadius: "12px",
+            maxWidth: "550px",
+            width: "100%",
+            boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6)",
+            border: "1px solid #3b3b5c",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #28283d" }}>
+              <h3 style={{ fontSize: "18px", fontWeight: "800", display: "flex", alignItems: "center", gap: "8px", color: "#00f0ff" }}>
+                ♻️ RESPawn Lifecycle Recycling Program
+              </h3>
+              <button 
+                type="button" 
+                style={{ background: "none", border: "none", color: "#ccc", cursor: "pointer" }} 
+                onClick={() => setRespawnItem(null)}
+              >
+                <XCircle size={22} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px" }}>
+              
+              <div style={{ display: "flex", gap: "12px", border: "1px solid #2c2c3e", padding: "12px", borderRadius: "8px", backgroundColor: "#1c1c28" }}>
+                <div style={{ width: "60px", height: "60px", backgroundImage: `url(${respawnItem.itemImage})`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat", backgroundColor: "#fff", borderRadius: "6px" }}></div>
+                <div>
+                  <span style={{ fontSize: "11px", color: "#a0a0c0", display: "block" }}>Order #{respawnItem.orderId} (7+ Days Delivered)</span>
+                  <strong style={{ fontSize: "14px", color: "#fff", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{respawnItem.itemName}</strong>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: "#202030", padding: "12px", borderRadius: "6px", borderLeft: "4px solid #00f0ff", fontSize: "13px", lineHeight: "1.5" }}>
+                💡 <strong>What is RESPawn?</strong> Since your 7-day return period has expired, this item is eligible for the RESPawn trade-in program. Send this item back to us, and we will inspect it to give it a second life. You will receive up to <strong>70% cashback</strong> depending on its condition, or recycle it for premium platform credits!
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ border: "1px solid #2a2a3c", padding: "12px", borderRadius: "6px", backgroundColor: "#13131d" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: "700", color: "#00ff88", marginBottom: "6px" }}>Option A: Resell / Trade-In</h4>
+                  <p style={{ fontSize: "11px", color: "#c0c0d0", lineHeight: "1.4" }}>Get up to 70% value in wallet cash depending on refurbished grade.</p>
+                </div>
+                <div style={{ border: "1px solid #2a2a3c", padding: "12px", borderRadius: "6px", backgroundColor: "#13131d" }}>
+                  <h4 style={{ fontSize: "12px", fontWeight: "700", color: "#ffaa00", marginBottom: "6px" }}>Option B: Green Recycle</h4>
+                  <p style={{ fontSize: "11px", color: "#c0c0d0", lineHeight: "1.4" }}>Eco-friendly materials recovery. Receive flat 20% carbon offsets and coupon bonuses.</p>
+                </div>
+              </div>
+
+              <div style={{ border: "1px solid #ffaa00", borderRadius: "6px", padding: "10px 12px", fontSize: "11px", color: "#ffaa00", backgroundColor: "rgba(255,170,0,0.05)" }}>
+                ⚡ <em>Note: RESPawn is an exclusive hackathon feature created to promote zero-waste circular commerce.</em>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: "flex", gap: "10px", padding: "15px 20px", borderTop: "1px solid #28283d", justifyContent: "flex-end", backgroundColor: "#12121a" }}>
+              <button 
+                type="button" 
+                style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "transparent", color: "#ccc", border: "1px solid #444", cursor: "pointer" }}
+                onClick={() => setRespawnItem(null)}
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "4px",
+                  background: "linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)",
+                  color: "#000",
+                  fontWeight: "700",
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 0 10px rgba(0,240,255,0.4)"
+                }}
+                onClick={() => {
+                  alert("Initiating RESPawn evaluation! You will receive a pre-paid mail-in envelope to ship your device for grading.");
+                  setRespawnItem(null);
+                }}
+              >
+                Start RESPawn Flow
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

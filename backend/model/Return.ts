@@ -29,6 +29,10 @@ export interface AnalysisMetrics {
   damageDetails?: string;
   tagIntact?: boolean;
   dimensionCheck?: DimensionCheckResult;
+  factoryImage?: string; // Pre-captured factory image URL
+  factoryImageMatchScore?: number; // 0 to 100 (similarity score)
+  mismatchScore?: number; // 0 to 100 (dissimilarity/deviation score)
+  mismatchThreshold?: number; // threshold (e.g. 15%)
 }
 
 export interface ReturnAssessment {
@@ -50,9 +54,10 @@ export interface ReturnAssessment {
     dimensionCheck?: number;
     damageDetection?: number;
     tagCheck?: number;
+    imageMatching?: number;
   };
   analysisMetrics: AnalysisMetrics;
   historyInsights: string;
-  status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected";
+  status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected" | "Approved (Sent to Manufacturer)";
   createdAt: Date;
 }
