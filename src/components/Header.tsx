@@ -25,6 +25,7 @@ export default function Header() {
     cart, 
     user, 
     switchUser, 
+    logoutUser,
     pincode, 
     updatePincode, 
     recentSearches, 
@@ -257,10 +258,60 @@ export default function Header() {
 
         {/* Account & Lists */}
         <div className="header-link-item">
-          <span>Hello, {user.name.split(" ")[0]}</span>
+          <span>Hello, {user?.name ? user.name.split(" ")[0] : "Sign in"}</span>
           <span className="header-link-bold">Account & Lists</span>
           
           <div className="dropdown-menu" style={{ minWidth: "250px" }}>
+            {/* Amazon Sign-In/Out Section */}
+            <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {user.id === "acc-1" || user.id === "acc-2" || user.id.startsWith("mock-user-") || (user.id && user.id.length > 5) ? (
+                <button
+                  onClick={() => logoutUser()}
+                  style={{
+                    backgroundColor: "#f0f2f2",
+                    backgroundImage: "linear-gradient(to bottom, #f7f8f8, #e7e9ec)",
+                    border: "1px solid #adb1b8",
+                    borderRadius: "3px",
+                    color: "#111",
+                    padding: "6px 20px",
+                    textAlign: "center",
+                    width: "100%",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 0 rgba(255,255,255,0.4) inset",
+                  }}
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <Link 
+                  href="/login" 
+                  style={{
+                    backgroundColor: "#f0c14b",
+                    backgroundImage: "linear-gradient(to bottom, #f7dfa5, #f0c14b)",
+                    border: "1px solid #a88734",
+                    borderRadius: "3px",
+                    color: "#111",
+                    padding: "6px 20px",
+                    textAlign: "center",
+                    width: "100%",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    textDecoration: "none",
+                    boxShadow: "0 1px 0 rgba(255,255,255,0.4) inset",
+                  }}
+                >
+                  Sign In
+                </Link>
+              )}
+              <div style={{ fontSize: "11px", marginTop: "6px", color: "#333" }}>
+                New customer? <Link href="/signup" style={{ color: "#007185", textDecoration: "none" }}>Start here.</Link>
+              </div>
+            </div>
+            
+            <div style={{ margin: "4px 0", borderBottom: "1px solid #eee" }}></div>
+
             <div className="dropdown-title">Your Account</div>
             <Link href="/orders" className="dropdown-link">Your Orders</Link>
             <Link href="/cart" className="dropdown-link">Your Wishlist</Link>
