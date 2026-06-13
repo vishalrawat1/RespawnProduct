@@ -108,3 +108,50 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { orderId, status, cancelReason, cancelDetails, returnReason } = body;
+
+    if (!orderId) {
+      return NextResponse.json({ status: "error", message: "Order ID is required." }, { status: 400 });
+    }
+
+    const { db, isMock } = await connectToDatabase();
+
+    if (isMock) {
+      const idx = MOCK_ORDERS.findIndex((o) => o.id === orderId);
+      if (idx !== -1) {
+        MOCK_ORDERS[idx].status = status;
+        if (cancelReason !== undefined) MOCK_ORDERS[idx].cancelReason = cancelReason;
+        if (cancelDetails !== undefined) MOCK_ORDERS[idx].cancelDetails = cancelDetails;
+        if (returnReason !== undefined) MOCK_ORDERS[idx].returnReason = returnReason;
+        return NextResponse.json({ status: "success", source: "mock", order: MOCK_ORDERS[idx] });
+      }
+      return NextResponse.json({ status: "error", message: "Order not found in mock storage." }, { status: 404 });
+    }
+
+    const ordersCollection = db!.collection("orders");
+    const updateFields: any = { status };
+    if (cancelReason !== undefined) updateFields.cancelReason = cancelReason;
+    if (cancelDetails !== undefined) updateFields.cancelDetails = cancelDetails;
+    if (returnReason !== undefined) updateFields.returnReason = returnReason;
+
+    const result = await ordersCollection.updateOne(
+      { id: orderId },
+      { $set: updateFields }
+    );
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ status: "error", message: "Order not found in database." }, { status: 404 });
+    }
+
+    return NextResponse.json({ status: "success", source: "mongodb" });
+  } catch (error: any) {
+    return NextResponse.json(
+      { status: "error", message: error.message || "Failed to update order." },
+      { status: 500 }
+    );
+  }
+}
