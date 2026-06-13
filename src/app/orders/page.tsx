@@ -92,6 +92,7 @@ export default function OrdersPage() {
   const [scanningProgress, setScanningProgress] = useState(0);
   const [scanningMessage, setScanningMessage] = useState("");
   const [assessmentResult, setAssessmentResult] = useState<any>(null);
+  const [returnAssessments, setReturnAssessments] = useState<Record<string, any>>({});
 
   // Cancellation dialog
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -99,21 +100,38 @@ export default function OrdersPage() {
   const [cancelComment, setCancelComment] = useState("");
 
   useEffect(() => {
-    async function fetchOrders() {
+    async function fetchOrdersAndReturns() {
       setLoading(true);
       try {
-        const res = await fetch("/api/orders", {
+        // Fetch orders
+        const ordersRes = await fetch("/api/orders", {
           headers: { "x-user-name": user.name }
         });
-        const data = await res.json();
-        if (data.status === "success") setOrders(data.orders || []);
+        const ordersData = await ordersRes.json();
+        let fetchedOrders = [];
+        if (ordersData.status === "success") {
+          fetchedOrders = ordersData.orders || [];
+          setOrders(fetchedOrders);
+        }
+
+        // Fetch returns
+        const returnsRes = await fetch(`/api/returns?userId=${user.id}`);
+        const returnsData = await returnsRes.json();
+        if (returnsData.status === "success" || returnsData.status === "mock_mode") {
+          const assessmentsMap: Record<string, any> = {};
+          const assessmentsList = returnsData.returns || [];
+          assessmentsList.forEach((ass: any) => {
+            assessmentsMap[ass.orderId] = ass;
+          });
+          setReturnAssessments(assessmentsMap);
+        }
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     }
-    fetchOrders();
+    fetchOrdersAndReturns();
   }, [user]);
 
   /* ── helpers ── */
@@ -286,6 +304,11 @@ export default function OrdersPage() {
           })
         );
         
+        setReturnAssessments(prev => ({
+          ...prev,
+          [returningItem!.orderId]: data.assessment
+        }));
+        
         setWizardStep("report");
       } else {
         alert("AI Returns inspection failed: " + data.message);
@@ -421,7 +444,7 @@ export default function OrdersPage() {
                 <div className="order-card-items">
                   {/* Status headline */}
                   <div style={{ marginBottom: "15px" }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: "700", color: order.status === "Cancelled" ? "red" : order.status === "Returned" ? "orange" : "green", margin: 0 }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: "700", color: order.status === "Cancelled" ? "red" : order.status === "Returned" ? "#e47911" : "green", margin: 0 }}>
                       {order.status === "Delivered"      && `Delivered on ${new Date(order.estimatedDelivery).toLocaleDateString("en-IN", { day: "numeric", month: "long" })}`}
                       {order.status === "Cancelled"      && "Order Cancelled"}
                       {order.status === "Returned"       && "Refund Processed (Item Returned via AI)"}
@@ -433,6 +456,46 @@ export default function OrdersPage() {
                       <div style={{ fontSize: "13px", color: "#666", marginTop: "5px", padding: "8px 12px", borderLeft: "3px solid red", backgroundColor: "#fff5f5" }}>
                         <strong>Cancellation Reason:</strong> {order.cancelReason}
                         {order.cancelDetails && ` (${order.cancelDetails})`}
+                      </div>
+                    )}
+                    {order.status === "Returned" && returnAssessments[order.id] && (
+                      <div style={{ display: "flex", gap: "12px", alignItems: "center", marginTop: "8px", flexWrap: "wrap" }}>
+                        <span style={{ 
+                          fontSize: "12px", 
+                          padding: "2px 8px", 
+                          borderRadius: "4px", 
+                          fontWeight: "700",
+                          ...getGradeStyle(returnAssessments[order.id].assignedGrade)
+                        }}>
+                          AI Grade: {returnAssessments[order.id].assignedGrade}
+                        </span>
+                        <span style={{ fontSize: "12px", color: "#555" }}>
+                          Status: <strong style={{ color: returnAssessments[order.id].status === "Approved (Auto-Refund)" ? "green" : "#b06000" }}>{returnAssessments[order.id].status}</strong>
+                        </span>
+                        <button 
+                          onClick={() => {
+                            setReturningItem({
+                              orderId: order.id,
+                              productId: order.items[0].id,
+                              itemName: order.items[0].name,
+                              itemImage: order.items[0].image
+                            });
+                            setAssessmentResult(returnAssessments[order.id]);
+                            setWizardStep("report");
+                          }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#007185",
+                            fontSize: "13.5px",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            padding: 0
+                          }}
+                        >
+                          View AI Inspection Report
+                        </button>
                       </div>
                     )}
                   </div>
@@ -488,6 +551,24 @@ export default function OrdersPage() {
                       })}
                     >
                       Return or replace items
+                    </button>
+                  )}
+
+                  {order.status === "Returned" && returnAssessments[order.id] && (
+                    <button 
+                      className="btn-gray" 
+                      onClick={() => {
+                        setReturningItem({ 
+                          orderId: order.id, 
+                          productId: order.items[0].id,
+                          itemName: order.items[0].name,
+                          itemImage: order.items[0].image
+                        });
+                        setAssessmentResult(returnAssessments[order.id]);
+                        setWizardStep("report");
+                      }}
+                    >
+                      View AI Return Report
                     </button>
                   )}
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 
+export const MOCK_RETURNS: any[] = [];
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -10,10 +12,15 @@ export async function GET(req: Request) {
     const { db, isMock } = await connectToDatabase();
     
     if (isMock || !db) {
+      let filtered = [...MOCK_RETURNS];
+      if (userId) filtered = filtered.filter(r => r.userId === userId);
+      if (orderId) filtered = filtered.filter(r => r.orderId === orderId);
+      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
       return NextResponse.json({
         status: "mock_mode",
-        message: "Running in mock mode. Return assessments are managed on the client side.",
-        returns: []
+        message: "Running in mock mode. Return assessments loaded from memory.",
+        returns: filtered
       });
     }
 
