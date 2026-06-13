@@ -29,6 +29,8 @@ interface AppContextType {
   clearCart: () => void;
   user: UserAccount;
   switchUser: (userId: string) => void;
+  loginUser: (userData: UserAccount) => void;
+  logoutUser: () => void;
   pincode: string;
   updatePincode: (pin: string) => void;
   recentSearches: string[];
@@ -44,7 +46,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pincode, setPincode] = useState<string>(SIMULATED_ACCOUNTS[0].pincode);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
-  // Load cart and searches on mount
+  // Load cart, searches, and user on mount
   useEffect(() => {
     const savedCart = localStorage.getItem("amazon_clone_cart");
     if (savedCart) {
@@ -61,6 +63,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setRecentSearches(JSON.parse(savedSearches));
       } catch (e) {
         console.error("Error loading searches", e);
+      }
+    }
+
+    const savedUser = localStorage.getItem("amazon_clone_user");
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setPincode(parsedUser.pincode);
+      } catch (e) {
+        console.error("Error loading user", e);
       }
     }
   }, []);
@@ -114,7 +127,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (found) {
       setUser(found);
       setPincode(found.pincode);
+      localStorage.setItem("amazon_clone_user", JSON.stringify(found));
     }
+  };
+
+  const loginUser = (userData: UserAccount) => {
+    setUser(userData);
+    setPincode(userData.pincode);
+    localStorage.setItem("amazon_clone_user", JSON.stringify(userData));
+  };
+
+  const logoutUser = () => {
+    const defaultUser = SIMULATED_ACCOUNTS[0];
+    setUser(defaultUser);
+    setPincode(defaultUser.pincode);
+    localStorage.removeItem("amazon_clone_user");
   };
 
   const updatePincode = (pin: string) => {
@@ -144,6 +171,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         clearCart,
         user,
         switchUser,
+        loginUser,
+        logoutUser,
         pincode,
         updatePincode,
         recentSearches,
