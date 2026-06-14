@@ -500,6 +500,12 @@ export default function Header() {
           <span className="header-link-bold">& Orders</span>
         </Link>
 
+        {/* RESPawn Returns */}
+        <Link href="/respawn" className="header-link-item">
+          <span>RESPawn</span>
+          <span className="header-link-bold">Returns</span>
+        </Link>
+
         {/* Cart */}
         <div 
           className="header-link-item header-cart"

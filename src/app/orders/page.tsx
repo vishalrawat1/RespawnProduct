@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/AppContext";
 import { 
   ShoppingBag, 
@@ -64,6 +65,7 @@ const STAGE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const { user, addToCart } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,14 @@ export default function OrdersPage() {
   const [activeVerificationImage, setActiveVerificationImage] = useState<string | null>(null);
   const [rentalLeasePrice, setRentalLeasePrice] = useState("");
   const [salvageTarget, setSalvageTarget] = useState("Gurgaon Government High School");
+
+  // Inline RESPawn inspection states
+  const [isInspectingRespawn, setIsInspectingRespawn] = useState(false);
+  const [respawnPhotos, setRespawnPhotos] = useState<string[]>([]);
+  const [respawnComments, setRespawnComments] = useState("");
+  const [respawnReason, setRespawnReason] = useState("size_issue");
+  const [respawnScanProgress, setRespawnScanProgress] = useState(0);
+  const [respawnScanMessage, setRespawnScanMessage] = useState("");
 
   // AI Scanner Steps
   const [wizardStep, setWizardStep] = useState<"intake" | "scanning" | "report">("intake");
@@ -321,9 +331,7 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: returnReason,
           comments: comments,
-          uploadedImages: selectedPhotos.length > 0 
-            ? selectedPhotos.map((_, idx) => `image_${idx + 1}.jpg`) 
-            : ["defective_claim.jpg"]
+          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : []
         })
       });
 
@@ -370,6 +378,92 @@ export default function OrdersPage() {
     setSelectedPhotos([]);
     setWizardStep("intake");
     setAssessmentResult(null);
+  };
+
+  const handleRespawnPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      filesArray.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            setRespawnPhotos(prev => [...prev, reader.result as string].slice(0, 5));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const runRespawnAIScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!respawnItem) return;
+    if (respawnPhotos.length < 3) {
+      alert("Please upload at least 3 photos for the AI Quality Inspector.");
+      return;
+    }
+
+    setIsInspectingRespawn(true);
+    setRespawnScanProgress(5);
+    setRespawnScanMessage("Connecting to AI inspector server...");
+
+    const interval = setInterval(() => {
+      setRespawnScanProgress(prev => {
+        if (prev >= 95) {
+          clearInterval(interval);
+          return 95;
+        }
+        const next = prev + Math.floor(Math.random() * 15) + 5;
+        if (next < 25) setRespawnScanMessage("Extracting 3D contours & edges...");
+        else if (next < 50) setRespawnScanMessage("Performing OpenCV template/keypoint matching...");
+        else if (next < 75) setRespawnScanMessage("Analyzing discoloration with HSL histograms...");
+        else if (next < 90) setRespawnScanMessage("Detecting surface scratches & shape deformations...");
+        else setRespawnScanMessage("Compiling OpenCV analytical report...");
+        return Math.min(next, 95);
+      });
+    }, 200);
+
+    try {
+      const res = await fetch("/api/returns/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: respawnItem.orderId,
+          productId: respawnItem.productId,
+          userId: user.id,
+          returnReason: respawnReason,
+          comments: respawnComments,
+          uploadedImages: respawnPhotos
+        })
+      });
+
+      const data = await res.json();
+      clearInterval(interval);
+
+      if (data.status === "success" && data.assessment) {
+        setRespawnScanProgress(100);
+        setRespawnScanMessage("Analysis complete.");
+        
+        // Sync locally
+        setReturnAssessments(prev => ({
+          ...prev,
+          [respawnItem.orderId]: data.assessment
+        }));
+        
+        setIsInspectingRespawn(false);
+        setRespawnPhotos([]);
+        setRespawnComments("");
+        setRespawnReason("size_issue");
+      } else {
+        alert("AI inspection failed: " + data.message);
+        setIsInspectingRespawn(false);
+      }
+    } catch (err) {
+      clearInterval(interval);
+      console.error(err);
+      alert("An error occurred during AI analysis.");
+      setIsInspectingRespawn(false);
+    }
   };
 
   const toggleStage = (orderId: string, stage: string) => {
@@ -1466,66 +1560,173 @@ export default function OrdersPage() {
                 {/* Product Details (Right Column) */}
                 <div style={{ border: "1px solid #222233", borderRadius: "8px", padding: "16px", backgroundColor: "rgba(255,255,255,0.01)" }}>
                   <h4 style={{ fontSize: "13px", fontWeight: "700", textTransform: "uppercase", color: "#a0a0c0", borderBottom: "1px solid #222233", paddingBottom: "6px", marginBottom: "12px" }}>
-                    📦 Product Details
+                    📦 Product Details & AI Assessment
                   </h4>
-                  <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-                    <div style={{
-                      width: "60px", 
-                      height: "60px", 
-                      backgroundImage: `url(${respawnItem.itemImage})`, 
-                      backgroundSize: "contain", 
-                      backgroundPosition: "center", 
-                      backgroundRepeat: "no-repeat", 
-                      backgroundColor: "#fff", 
-                      borderRadius: "6px",
-                      flexShrink: 0,
-                      border: "1px solid #222"
-                    }}></div>
-                    <div style={{ fontSize: "12px" }}>
-                      <strong style={{ fontSize: "13px", color: "#fff", display: "block" }}>{respawnItem.itemName}</strong>
-                      <span style={{ color: "#777", display: "block" }}>Category: Audio | Original Price: ₹29,990</span>
-                      <span style={{ color: "#777", display: "block", marginTop: "2px" }}>
-                        Condition: <strong style={{ color: "#ffaa00" }}>Good</strong> | Defects: Minor scratches, 100% functional
-                      </span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const assessment = returnAssessments[respawnItem.orderId];
+                    if (isInspectingRespawn) {
+                      return (
+                        <div style={{ padding: "20px 0", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                          {/* Inline Spinner/Progress */}
+                          <div style={{ height: "4px", width: "100%", backgroundColor: "#222233", borderRadius: "2px", overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${respawnScanProgress}%`, backgroundColor: "#00f0ff", transition: "width 0.2s ease" }}></div>
+                          </div>
+                          <span style={{ fontSize: "12px", color: "#00f0ff", fontWeight: "700" }}>{respawnScanProgress}% Analyzed</span>
+                          <span style={{ fontSize: "11px", color: "#888", fontStyle: "italic" }}>{respawnScanMessage}</span>
+                        </div>
+                      );
+                    }
 
-                  {/* Badges / Checkmarks */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
-                    
-                    {/* AI Verified Badge */}
-                    <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
-                      <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
-                        ✓ AI Grade: B+ (82)
-                      </div>
-                      <button 
-                        type="button"
-                        onClick={() => setActiveVerificationImage("ai-inspect")}
-                        style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
-                      >
-                        [View AI Scan Image]
-                      </button>
-                    </div>
+                    if (!assessment) {
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                          <div style={{ fontSize: "12px", color: "#ffc83b", backgroundColor: "rgba(255, 170, 0, 0.05)", border: "1px dashed rgba(255, 170, 0, 0.3)", padding: "10px", borderRadius: "6px", lineHeight: "1.4" }}>
+                            ⚠️ <strong>Real-time Quality Analysis Required:</strong> To estimate resell value, lease potential, or salvage points, please upload 3 photos of your product for OpenCV AI defect detection.
+                          </div>
+                          
+                          <div style={{ fontSize: "12px" }}>
+                            <label style={{ display: "block", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>Select Condition Type:</label>
+                            <select 
+                              value={respawnReason}
+                              onChange={(e) => setRespawnReason(e.target.value)}
+                              style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #33334d", backgroundColor: "#12121a", color: "#fff", fontSize: "12px" }}
+                            >
+                              <option value="size_issue">No visible issues (Perfect Match)</option>
+                              <option value="color_difference">Minor scuffs / Color fading (OpenCV Mismatch)</option>
+                              <option value="defective_damaged">Visible scratches / Dents / Damages (OpenCV Defect)</option>
+                            </select>
+                          </div>
 
-                    {/* Human Verified Badge */}
-                    <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
-                      <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
-                        ✓ QA Auditor Verified
-                      </div>
-                      <button 
-                        type="button"
-                        onClick={() => setActiveVerificationImage("human-inspect")}
-                        style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
-                      >
-                        [View QA Audit Photo]
-                      </button>
-                    </div>
-                  </div>
+                          <div style={{ fontSize: "12px" }}>
+                            <label style={{ display: "block", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>Visible Defects / Comments:</label>
+                            <input 
+                              type="text"
+                              value={respawnComments}
+                              onChange={(e) => setRespawnComments(e.target.value)}
+                              placeholder="e.g. minor scratches, clean borders"
+                              style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #33334d", backgroundColor: "#12121a", color: "#fff", fontSize: "12px" }}
+                            />
+                          </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginTop: "10px" }}>
-                    <a href="#health-card" onClick={(e) => { e.preventDefault(); alert("Viewing digital condition health card: All components verified functional."); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• Health Card: View</a>
-                    <a href="#full-inspect" onClick={(e) => { e.preventDefault(); alert("Inspection Report: 0.0% moisture ingress, 98% battery health capacity."); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• [View Full Inspection]</a>
-                  </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>
+                              Upload 3 Photos (Front, Back, Detail):
+                            </label>
+                            <input 
+                              type="file" 
+                              multiple 
+                              accept="image/*"
+                              onChange={handleRespawnPhotoSelect}
+                              style={{ fontSize: "11px", color: "#888" }}
+                            />
+                            {respawnPhotos.length > 0 && (
+                              <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+                                {respawnPhotos.map((p, idx) => (
+                                  <div key={idx} style={{ width: "35px", height: "35px", backgroundImage: `url(${p})`, backgroundSize: "cover", backgroundPosition: "center", borderRadius: "4px", border: "1px solid #333" }}></div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={runRespawnAIScan}
+                            disabled={respawnPhotos.length < 3}
+                            style={{
+                              marginTop: "6px",
+                              width: "100%",
+                              padding: "8px",
+                              backgroundColor: respawnPhotos.length < 3 ? "#222" : "#00f0ff",
+                              color: respawnPhotos.length < 3 ? "#666" : "#000",
+                              border: "none",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              cursor: respawnPhotos.length < 3 ? "not-allowed" : "pointer",
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            ⚡ RUN OPENCV AI INSPECTION
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // Assessment exists - render full product stats dynamically
+                    const getConditionText = (grade: string) => {
+                      if (grade === "A+" || grade === "A") return "Excellent";
+                      if (grade === "B+" || grade === "B") return "Good";
+                      if (grade === "C") return "Fair";
+                      return "Poor";
+                    };
+
+                    const conditionStyleColor = 
+                      assessment.assignedGrade.startsWith("A") ? "#00ff88" :
+                      assessment.assignedGrade.startsWith("B") ? "#ffaa00" : "#ff4444";
+
+                    return (
+                      <>
+                        <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                          <div style={{
+                            width: "60px", 
+                            height: "60px", 
+                            backgroundImage: `url(${respawnItem.itemImage})`, 
+                            backgroundSize: "contain", 
+                            backgroundPosition: "center", 
+                            backgroundRepeat: "no-repeat", 
+                            backgroundColor: "#fff", 
+                            borderRadius: "6px",
+                            flexShrink: 0,
+                            border: "1px solid #222"
+                          }}></div>
+                          <div style={{ fontSize: "12px" }}>
+                            <strong style={{ fontSize: "13px", color: "#fff", display: "block" }}>{respawnItem.itemName}</strong>
+                            <span style={{ color: "#777", display: "block" }}>Category: Audio | Original Price: ₹29,990</span>
+                            <span style={{ color: "#a0a0c0", display: "block", marginTop: "2px" }}>
+                              Condition: <strong style={{ color: conditionStyleColor }}>{getConditionText(assessment.assignedGrade)}</strong> | Defects: {assessment.analysisMetrics.damageDetails || "No structural defects detected."}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Badges / Checkmarks */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
+                          
+                          {/* AI Verified Badge */}
+                          <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
+                            <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                              ✓ AI Grade: {assessment.assignedGrade} ({100 - (assessment.analysisMetrics.mismatchScore || 0)}%)
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setActiveVerificationImage("ai-inspect")}
+                              style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
+                            >
+                              [View AI Scan Image]
+                            </button>
+                          </div>
+
+                          {/* Human Verified Badge */}
+                          <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
+                            <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                              ✓ QA Auditor Verified
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setActiveVerificationImage("human-inspect")}
+                              style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
+                            >
+                              [View QA Audit Photo]
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginTop: "10px" }}>
+                          <a href="#health-card" onClick={(e) => { e.preventDefault(); alert("Viewing digital condition health card: All components verified functional."); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• Health Card: View</a>
+                          <a href="#full-inspect" onClick={(e) => { e.preventDefault(); alert(`Inspection Report: Mismatch Score: ${assessment.analysisMetrics.mismatchScore}%, Threshold: ${assessment.analysisMetrics.mismatchThreshold}%`); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• [View Full Inspection]</a>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
               </div>
@@ -1879,11 +2080,21 @@ export default function OrdersPage() {
                   fontSize: "13px"
                 }}
                 onClick={() => {
-                  alert(`RESPawn request submitted successfully via ${respawnOption.toUpperCase()}! Your item has been scheduled for pickup at:\n\n${editedAddress}`);
+                  const dataToPass = {
+                    item: {
+                      id: respawnItem.productId,
+                      name: respawnItem.itemName,
+                      image: respawnItem.itemImage,
+                      price: 0
+                    },
+                    type: respawnOption
+                  };
+                  sessionStorage.setItem("pendingRespawn", JSON.stringify(dataToPass));
                   setRespawnItem(null);
+                  router.push("/respawn");
                 }}
               >
-                🚀 SUBMIT TO AI CHECK
+                🚀 INITIATE RESPawn ROUTING
               </button>
             </div>
           </div>
@@ -1899,7 +2110,7 @@ export default function OrdersPage() {
             background: "#181824",
             color: "#fff",
             borderRadius: "10px",
-            maxWidth: "500px",
+            maxWidth: "600px",
             width: "100%",
             border: "1px solid #3b3b5c",
             overflow: "hidden",
@@ -1919,18 +2130,43 @@ export default function OrdersPage() {
             </div>
             <div style={{ padding: "20px", textAlign: "center" }}>
               {activeVerificationImage === "ai-inspect" ? (
-                <div style={{ position: "relative", border: "2px solid #00ff88", borderRadius: "6px", overflow: "hidden", backgroundColor: "#fff" }}>
-                  <img 
-                    src={respawnItem.itemImage} 
-                    alt="AI Scan" 
-                    style={{ width: "100%", maxHeight: "300px", objectFit: "contain", display: "block" }}
-                  />
-                  {/* AI Scanner overlay effect */}
-                  <div style={{ position: "absolute", top: "10%", left: 0, right: 0, height: "2px", backgroundColor: "#00ff88", boxShadow: "0 0 8px #00ff88" }}></div>
-                  <div style={{ position: "absolute", bottom: "10px", left: "10px", backgroundColor: "rgba(0,255,136,0.9)", color: "#000", padding: "3px 8px", borderRadius: "4px", fontSize: "10px", fontWeight: "700" }}>
-                    ✓ 0.0% Structural Damage Detected
-                  </div>
-                </div>
+                (() => {
+                  const assessment = returnAssessments[respawnItem.orderId];
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>FACTORY REFERENCE (M1)</span>
+                          <div style={{ border: "1px solid #333", borderRadius: "6px", overflow: "hidden", backgroundColor: "#fff", height: "180px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <img 
+                              src={assessment?.analysisMetrics?.factoryImage || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80"} 
+                              alt="Factory Reference" 
+                              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>USER RETURN IMAGE (U1)</span>
+                          <div style={{ border: "2px solid #00ff88", borderRadius: "6px", overflow: "hidden", backgroundColor: "#fff", height: "180px", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                            <img 
+                              src={assessment?.uploadedImages?.[0] || respawnItem.itemImage} 
+                              alt="User Return" 
+                              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                            />
+                            {/* Scanner overlay effect */}
+                            <div style={{ position: "absolute", top: "10%", left: 0, right: 0, height: "2px", backgroundColor: "#00ff88", boxShadow: "0 0 8px #00ff88" }}></div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ backgroundColor: "rgba(0,255,136,0.08)", color: "#00ff88", border: "1px solid rgba(0,255,136,0.3)", padding: "10px", borderRadius: "6px", fontSize: "12px", textAlign: "left", lineHeight: "1.4" }}>
+                        <strong>OpenCV Comparison Results:</strong><br />
+                        • Mismatch Score: {assessment?.analysisMetrics?.mismatchScore || 0}% (Threshold: {assessment?.analysisMetrics?.mismatchThreshold || 15}%)<br />
+                        • Defects Detected: {assessment?.analysisMetrics?.damageDetails || "None detected."}
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div style={{ border: "2px dashed #00f0ff", borderRadius: "6px", padding: "16px", backgroundColor: "#111119" }}>
                   <div style={{ fontSize: "48px", marginBottom: "10px" }}>🛡️</div>
