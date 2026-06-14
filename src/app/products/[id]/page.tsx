@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useApp } from "@/lib/AppContext";
-import { Product, Review, QA } from "@/lib/mockData";
+import { Product, Review, QA, HEALTH_CARDS } from "@/lib/mockData";
+import HealthCard from "@/components/HealthCard";
 import { 
   Heart, 
   Share2, 
@@ -108,6 +109,7 @@ export default function ProductDetailPage() {
       image: product.image,
       variation: varString || undefined,
       isPrime: product.isPrime,
+      isRespawned: product.respawn?.isRespawned || false,
     });
     alert(`Successfully added ${quantity} item(s) to your shopping cart!`);
   };
@@ -126,6 +128,7 @@ export default function ProductDetailPage() {
       image: product.image,
       variation: varString || undefined,
       isPrime: product.isPrime,
+      isRespawned: product.respawn?.isRespawned || false,
     });
     router.push("/cart");
   };
@@ -242,6 +245,13 @@ export default function ProductDetailPage() {
               You Save: ₹{(product.mrp - product.price).toLocaleString("en-IN")} (Inclusive of all taxes)
             </div>
           </div>
+
+          {/* Health Card for Respawned Items */}
+          {product.respawn?.isRespawned && product.respawn.healthCardId && HEALTH_CARDS[product.respawn.healthCardId] && (
+            <div style={{ marginBottom: "20px" }}>
+              <HealthCard productId={product.id} data={HEALTH_CARDS[product.respawn.healthCardId]} />
+            </div>
+          )}
 
           {/* Variations Swatches */}
           {product.variations?.map((v) => (

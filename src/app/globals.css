@@ -1539,3 +1539,146 @@ button {
   background-color: var(--amazon-orange-hover);
   transition: width 0.1s linear;
 }
+
+/* ----------------------------------------------------
+   HEALTH CARD STYLING
+   ---------------------------------------------------- */
+.health-card {
+  border: 1px solid #008296;
+  border-radius: 8px;
+  background-color: #f6fafa;
+  overflow: hidden;
+  margin-top: 15px;
+  font-family: inherit;
+}
+
+.health-card-header {
+  background-color: #008296;
+  color: #fff;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.health-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.health-card-body {
+  padding: 15px;
+}
+
+.health-grade-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.health-grade-badge {
+  background-color: #0f1111;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 800;
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.health-grade-badge.grade-A { background-color: #007600; }
+.health-grade-badge.grade-B { background-color: #008296; }
+.health-grade-badge.grade-C { background-color: #e47911; }
+.health-grade-badge.grade-D, .health-grade-badge.grade-F { background-color: #b12704; }
+
+.health-confidence {
+  font-size: 13px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.health-details {
+  border-top: 1px solid #e7e7e7;
+  padding-top: 10px;
+}
+
+.health-detail-item {
+  font-size: 13px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.health-detail-label {
+  font-weight: 700;
+  color: #555;
+  margin-bottom: 2px;
+}
+
+.health-returns-list {
+  list-style: none;
+  padding-left: 10px;
+  border-left: 2px solid #ccc;
+  margin-top: 4px;
+}
+
+.health-returns-list li {
+  font-size: 12px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.health-footer {
+  background-color: #e7f0f1;
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #d8e2e3;
+}
+
+.health-sustainability {
+  font-size: 12px;
+  color: #007185;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-verify-btn {
+  background-color: #fff;
+  border: 1px solid #888;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-verify-btn:hover {
+  background-color: #f3f3f3;
+}
+
+.respawn-tag {
+  background-color: #008296;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+

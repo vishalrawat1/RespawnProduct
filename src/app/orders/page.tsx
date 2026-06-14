@@ -2085,7 +2085,9 @@ export default function OrdersPage() {
                       id: respawnItem.productId,
                       name: respawnItem.itemName,
                       image: respawnItem.itemImage,
-                      price: 0
+                      price: respawnOption === "p2p" ? parseInt(expectedPrice) || 19500 : 
+                             respawnOption === "lease" ? parseInt(rentalLeasePrice) || 300 : 
+                             19500
                     },
                     type: respawnOption
                   };

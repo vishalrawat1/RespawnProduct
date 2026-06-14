@@ -12,6 +12,7 @@ export interface CartItem {
   image: string;
   variation?: string;
   isPrime: boolean;
+  isRespawned?: boolean;
 }
 
 export interface UserAccount {

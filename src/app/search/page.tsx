@@ -23,6 +23,7 @@ function SearchResultsContent() {
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [onlyPrime, setOnlyPrime] = useState(false);
+  const [onlyRespawn, setOnlyRespawn] = useState(false);
   const [sortOrder, setSortOrder] = useState("featured");
 
   // Fetch products based on query and filters
@@ -37,12 +38,16 @@ function SearchResultsContent() {
         if (priceRange.min) url += `&priceMin=${priceRange.min}`;
         if (priceRange.max) url += `&priceMax=${priceRange.max}`;
         if (onlyPrime) url += `&prime=true`;
+        if (onlyRespawn) url += `&respawnOnly=true`;
         url += `&sort=${sortOrder}`;
 
         const res = await fetch(url);
         const data = await res.json();
         if (data.status === "success") {
-          setProducts(data.products || []);
+          const availableProducts = (data.products || []).filter(
+            (p: any) => p.respawn?.status !== "accepted"
+          );
+          setProducts(availableProducts);
         }
       } catch (err) {
         console.error("Failed to fetch products", err);
@@ -51,7 +56,7 @@ function SearchResultsContent() {
       }
     }
     fetchFilteredProducts();
-  }, [q, categoryParam, selectedBrand, selectedRating, priceRange.min, priceRange.max, onlyPrime, sortOrder]);
+  }, [q, categoryParam, selectedBrand, selectedRating, priceRange.min, priceRange.max, onlyPrime, onlyRespawn, sortOrder]);
 
   const handlePriceApply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +96,7 @@ function SearchResultsContent() {
     setSelectedRating(0);
     setPriceRange({ min: "", max: "" });
     setOnlyPrime(false);
+    setOnlyRespawn(false);
     setSortOrder("featured");
   };
 
@@ -122,6 +128,24 @@ function SearchResultsContent() {
                 />
                 <label htmlFor="primeCheck" style={{ fontSize: "13px", display: "flex", alignItems: "center", cursor: "pointer" }}>
                   <span className="prime-badge" style={{ marginLeft: "4px" }}>Prime</span> Eligible
+                </label>
+              </li>
+            </ul>
+          </div>
+
+          {/* Respawn Filter */}
+          <div className="filter-section">
+            <h4>Item Condition</h4>
+            <ul>
+              <li>
+                <input 
+                  type="checkbox" 
+                  id="respawnCheck" 
+                  checked={onlyRespawn}
+                  onChange={(e) => setOnlyRespawn(e.target.checked)}
+                />
+                <label htmlFor="respawnCheck" style={{ fontSize: "13px", display: "flex", alignItems: "center", cursor: "pointer", marginLeft: "6px" }}>
+                  Show only <span className="respawn-tag" style={{ marginLeft: "4px" }}>RESPAWN</span>
                 </label>
               </li>
             </ul>
@@ -215,6 +239,7 @@ function SearchResultsContent() {
                 <option value="price-desc">Price: High to Low</option>
                 <option value="rating-desc">Avg. Customer Review</option>
                 <option value="newest">Newest Arrivals</option>
+                <option value="best-health">Best Health Score</option>
               </select>
             </div>
           </div>
@@ -247,7 +272,10 @@ function SearchResultsContent() {
                     {!isSponsored && p.isBestSeller && <span className="product-card-badge" style={{ backgroundColor: "#e47911" }}>Best Seller</span>}
                     {!isSponsored && !p.isBestSeller && p.isChoice && <span className="product-card-badge" style={{ backgroundColor: "#232f3e" }}>Amazon's Choice</span>}
 
-                    <Link href={`/products/${p.id}`}>
+                    <Link href={`/products/${p.id}`} style={{ position: "relative", display: "block" }}>
+                      {p.respawn?.isRespawned && (
+                        <span style={{ position: "absolute", top: "5px", left: "5px", zIndex: 10 }} className="respawn-tag">RESPAWN</span>
+                      )}
                       <div 
                         className="product-card-img" 
                         style={{ backgroundImage: `url(${p.image})` }}

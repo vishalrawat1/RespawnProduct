@@ -71,3 +71,28 @@ export interface ReturnAssessment {
   status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected" | "Approved (Sent to Manufacturer)";
   createdAt: string;
 }
+
+export interface HealthCardReturnEntry {
+  id: number;
+  reason: string;
+  count?: number;
+  info?: string;
+}
+
+export interface HealthCardData {
+  id: string;
+  grade: string;
+  confidence: number;
+  returns: HealthCardReturnEntry[];
+  routed: string;
+  manufacturerNote: string;
+  sustainability: string;
+  generatedDate: string;
+  blockchainHash?: string;
+}
+
+export interface RespawnData {
+  isRespawned: boolean;
+  healthCardId?: string;
+  grade?: string;
+}

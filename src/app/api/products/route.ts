@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const priceMin = parseFloat(searchParams.get("priceMin") || "0");
   const priceMax = parseFloat(searchParams.get("priceMax") || "999999999");
   const prime = searchParams.get("prime") === "true";
+  const respawnOnly = searchParams.get("respawnOnly") === "true";
   const sort = searchParams.get("sort") || "featured";
 
   const { db, isMock } = await connectToDatabase();
@@ -50,6 +51,10 @@ export async function GET(req: NextRequest) {
       filtered = filtered.filter((p) => p.isPrime);
     }
 
+    if (respawnOnly) {
+      filtered = filtered.filter((p) => p.respawn?.isRespawned);
+    }
+
     // Sorting
     if (sort === "price-asc") {
       filtered.sort((a, b) => a.price - b.price);
@@ -60,6 +65,12 @@ export async function GET(req: NextRequest) {
     } else if (sort === "newest") {
       // simulate newest by reversing or ID matching
       filtered.reverse();
+    } else if (sort === "best-health") {
+      filtered.sort((a, b) => {
+        const gradeA = a.respawn?.grade || "Z";
+        const gradeB = b.respawn?.grade || "Z";
+        return gradeA.localeCompare(gradeB);
+      });
     }
 
     return NextResponse.json({
@@ -104,6 +115,10 @@ export async function GET(req: NextRequest) {
       queryObj.isPrime = true;
     }
 
+    if (respawnOnly) {
+      queryObj["respawn.isRespawned"] = true;
+    }
+
     const productsCollection = db!.collection("products");
     let queryCursor = productsCollection.find(queryObj);
 
@@ -116,6 +131,8 @@ export async function GET(req: NextRequest) {
       queryCursor = queryCursor.sort({ rating: -1 });
     } else if (sort === "newest") {
       queryCursor = queryCursor.sort({ _id: -1 });
+    } else if (sort === "best-health") {
+      queryCursor = queryCursor.sort({ "respawn.grade": 1 });
     }
 
     const products = await queryCursor.toArray();
