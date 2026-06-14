@@ -24,6 +24,7 @@ export interface ReturnRequest {
     | "mistake_cheaper_late";
   comments: string;
   uploadedImages: string[];
+  isRespawn?: boolean;
 }
 
 export interface DimensionCheckResult {

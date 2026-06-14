@@ -1,0 +1,18 @@
+{
+  "manufacturer_reference_images": {
+    "front_view": "returnassessment/temp_test_images/m1.jpg",
+    "back_view": "returnassessment/temp_test_images/m2.jpg",
+    "detail_view": "returnassessment/temp_test_images/m3.jpg"
+  },
+  "user_return_images": {
+    "user_front": "returnassessment/temp_test_images/u1_mismatch.jpg",
+    "user_back": "returnassessment/temp_test_images/u2_mismatch.jpg",
+    "user_detail": "returnassessment/temp_test_images/u3_mismatch.jpg"
+  },
+  "product_info": {
+    "category": "fashion",
+    "brand_model": "Puma RS-Z Sneakers",
+    "return_reason": "color_difference",
+    "days_since_delivery": 4
+  }
+}

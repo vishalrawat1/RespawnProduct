@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useApp } from "@/lib/AppContext";
 import { 
   ShoppingBag, 
@@ -64,6 +65,7 @@ const STAGE_ICONS: Record<string, React.ReactNode> = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const { user, addToCart } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +95,25 @@ export default function OrdersPage() {
   const [comments, setComments] = useState("");
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  // RESPawn Premium Modal States
+  const [respawnOption, setRespawnOption] = useState<"p2p" | "refurb" | "donate" | "recycle" | "lease" | "salvage">("p2p");
+  const [expectedPrice, setExpectedPrice] = useState("");
+  const [selectedRadius, setSelectedRadius] = useState("5km");
+  const [editedAddress, setEditedAddress] = useState("Sector 56, Gurgaon, Haryana - 122018");
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [activeVerificationImage, setActiveVerificationImage] = useState<string | null>(null);
+  const [rentalLeasePrice, setRentalLeasePrice] = useState("");
+  const [salvageTarget, setSalvageTarget] = useState("Gurgaon Government High School");
+
+  // Inline RESPawn inspection states
+  const [isInspectingRespawn, setIsInspectingRespawn] = useState(false);
+  const [respawnPhotos, setRespawnPhotos] = useState<string[]>([]);
+  const [respawnComments, setRespawnComments] = useState("");
+  const [respawnReason, setRespawnReason] = useState("size_issue");
+  const [respawnScanProgress, setRespawnScanProgress] = useState(0);
+  const [respawnScanMessage, setRespawnScanMessage] = useState("");
 
   // AI Scanner Steps
   const [wizardStep, setWizardStep] = useState<"intake" | "scanning" | "report">("intake");
@@ -310,9 +331,7 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: returnReason,
           comments: comments,
-          uploadedImages: selectedPhotos.length > 0 
-            ? selectedPhotos.map((_, idx) => `image_${idx + 1}.jpg`) 
-            : ["defective_claim.jpg"]
+          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : []
         })
       });
 
@@ -359,6 +378,92 @@ export default function OrdersPage() {
     setSelectedPhotos([]);
     setWizardStep("intake");
     setAssessmentResult(null);
+  };
+
+  const handleRespawnPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      filesArray.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            setRespawnPhotos(prev => [...prev, reader.result as string].slice(0, 5));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const runRespawnAIScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!respawnItem) return;
+    if (respawnPhotos.length < 3) {
+      alert("Please upload at least 3 photos for the AI Quality Inspector.");
+      return;
+    }
+
+    setIsInspectingRespawn(true);
+    setRespawnScanProgress(5);
+    setRespawnScanMessage("Connecting to AI inspector server...");
+
+    const interval = setInterval(() => {
+      setRespawnScanProgress(prev => {
+        if (prev >= 95) {
+          clearInterval(interval);
+          return 95;
+        }
+        const next = prev + Math.floor(Math.random() * 15) + 5;
+        if (next < 25) setRespawnScanMessage("Extracting 3D contours & edges...");
+        else if (next < 50) setRespawnScanMessage("Performing OpenCV template/keypoint matching...");
+        else if (next < 75) setRespawnScanMessage("Analyzing discoloration with HSL histograms...");
+        else if (next < 90) setRespawnScanMessage("Detecting surface scratches & shape deformations...");
+        else setRespawnScanMessage("Compiling OpenCV analytical report...");
+        return Math.min(next, 95);
+      });
+    }, 200);
+
+    try {
+      const res = await fetch("/api/returns/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: respawnItem.orderId,
+          productId: respawnItem.productId,
+          userId: user.id,
+          returnReason: respawnReason,
+          comments: respawnComments,
+          uploadedImages: respawnPhotos
+        })
+      });
+
+      const data = await res.json();
+      clearInterval(interval);
+
+      if (data.status === "success" && data.assessment) {
+        setRespawnScanProgress(100);
+        setRespawnScanMessage("Analysis complete.");
+        
+        // Sync locally
+        setReturnAssessments(prev => ({
+          ...prev,
+          [respawnItem.orderId]: data.assessment
+        }));
+        
+        setIsInspectingRespawn(false);
+        setRespawnPhotos([]);
+        setRespawnComments("");
+        setRespawnReason("size_issue");
+      } else {
+        alert("AI inspection failed: " + data.message);
+        setIsInspectingRespawn(false);
+      }
+    } catch (err) {
+      clearInterval(interval);
+      console.error(err);
+      alert("An error occurred during AI analysis.");
+      setIsInspectingRespawn(false);
+    }
   };
 
   const toggleStage = (orderId: string, stage: string) => {
@@ -1360,92 +1465,722 @@ export default function OrdersPage() {
           RESPAWN TRADE-IN & RECYCLE MODAL
          ======================================================== */}
       {respawnItem && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "20px", overflowY: "auto" }}>
           <div style={{
-            background: "linear-gradient(135deg, #181824 0%, #101015 100%)",
+            background: "linear-gradient(135deg, #181828 0%, #0d0d12 100%)",
             color: "#fff",
-            borderRadius: "12px",
-            maxWidth: "550px",
+            borderRadius: "14px",
+            maxWidth: "750px",
             width: "100%",
-            boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6)",
-            border: "1px solid #3b3b5c",
+            boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8)",
+            border: "1px solid #33334d",
             overflow: "hidden",
             display: "flex",
-            flexDirection: "column"
+            flexDirection: "column",
+            maxHeight: "90vh"
           }}>
             {/* Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px", borderBottom: "1px solid #28283d" }}>
-              <h3 style={{ fontSize: "18px", fontWeight: "800", display: "flex", alignItems: "center", gap: "8px", color: "#00f0ff" }}>
-                ♻️ RESPawn Lifecycle Recycling Program
-              </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", borderBottom: "1px solid #222233", background: "rgba(255,255,255,0.02)" }}>
+              <div>
+                <h3 style={{ fontSize: "19px", fontWeight: "800", display: "flex", alignItems: "center", gap: "8px", color: "#00f0ff", margin: 0 }}>
+                  🔄 RESPawn — Give Your Product a Second Life
+                </h3>
+                <span style={{ fontSize: "11px", color: "#a0a0c0", marginTop: "2px", display: "block" }}>
+                  Order #{respawnItem.orderId} • Delivered 12 days ago
+                </span>
+              </div>
               <button 
                 type="button" 
-                style={{ background: "none", border: "none", color: "#ccc", cursor: "pointer" }} 
+                style={{ background: "none", border: "none", color: "#ccc", cursor: "pointer", padding: "4px" }} 
                 onClick={() => setRespawnItem(null)}
               >
                 <XCircle size={22} />
               </button>
             </div>
 
-            {/* Content */}
-            <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px" }}>
+            {/* Scrollable Container */}
+            <div style={{ padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "20px" }}>
               
-              <div style={{ display: "flex", gap: "12px", border: "1px solid #2c2c3e", padding: "12px", borderRadius: "8px", backgroundColor: "#1c1c28" }}>
-                <div style={{ width: "60px", height: "60px", backgroundImage: `url(${respawnItem.itemImage})`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat", backgroundColor: "#fff", borderRadius: "6px" }}></div>
-                <div>
-                  <span style={{ fontSize: "11px", color: "#a0a0c0", display: "block" }}>Order #{respawnItem.orderId} (7+ Days Delivered)</span>
-                  <strong style={{ fontSize: "14px", color: "#fff", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{respawnItem.itemName}</strong>
+              {/* Two-Column User vs Product Section */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: "20px" }}>
+                
+                {/* User Details (Left Column) */}
+                <div style={{ border: "1px solid #222233", borderRadius: "8px", padding: "16px", backgroundColor: "rgba(255,255,255,0.01)" }}>
+                  <h4 style={{ fontSize: "13px", fontWeight: "700", textTransform: "uppercase", color: "#a0a0c0", borderBottom: "1px solid #222233", paddingBottom: "6px", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    👤 User Details
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px", lineHeight: "1.4" }}>
+                    <div><span style={{ color: "#777" }}>Name:</span> <strong>Rahul Sharma</strong></div>
+                    <div><span style={{ color: "#777" }}>Phone:</span> <strong>+91 98765 43123</strong></div>
+                    <div><span style={{ color: "#777" }}>Email:</span> <strong>rahul.sharma@outlook.com</strong></div>
+                    
+                    {/* Editable Address */}
+                    <div>
+                      <span style={{ color: "#777", display: "block", marginBottom: "2px" }}>Pickup Address:</span>
+                      {isEditingAddress ? (
+                        <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
+                          <input 
+                            type="text" 
+                            value={editedAddress} 
+                            onChange={(e) => setEditedAddress(e.target.value)}
+                            style={{ flex: 1, padding: "4px 8px", borderRadius: "4px", border: "1px solid #00f0ff", backgroundColor: "#12121a", color: "#fff", fontSize: "11px" }}
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => setIsEditingAddress(false)}
+                            style={{ padding: "4px 8px", backgroundColor: "#00f0ff", color: "#000", border: "none", borderRadius: "4px", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "12px", color: "#ddd", fontStyle: "italic", border: "1px solid #222233", padding: "6px", borderRadius: "4px", backgroundColor: "#111119" }}>
+                          {editedAddress}
+                          <button 
+                            type="button" 
+                            onClick={() => setIsEditingAddress(true)}
+                            style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, fontSize: "11px", cursor: "pointer", marginTop: "4px", textDecoration: "underline" }}
+                          >
+                            [Edit Address]
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Return History */}
+                    <div style={{ borderTop: "1px solid #222233", paddingTop: "10px", marginTop: "4px" }}>
+                      <span style={{ color: "#777", display: "block", marginBottom: "4px" }}>[Your Return History]</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(0,255,136,0.1)", color: "#00ff88", padding: "3px 8px", borderRadius: "12px", fontSize: "11px", fontWeight: "600" }}>
+                        ✓ 3 returns, 0 disputes
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Details (Right Column) */}
+                <div style={{ border: "1px solid #222233", borderRadius: "8px", padding: "16px", backgroundColor: "rgba(255,255,255,0.01)" }}>
+                  <h4 style={{ fontSize: "13px", fontWeight: "700", textTransform: "uppercase", color: "#a0a0c0", borderBottom: "1px solid #222233", paddingBottom: "6px", marginBottom: "12px" }}>
+                    📦 Product Details & AI Assessment
+                  </h4>
+                  {(() => {
+                    const assessment = returnAssessments[respawnItem.orderId];
+                    if (isInspectingRespawn) {
+                      return (
+                        <div style={{ padding: "20px 0", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+                          {/* Inline Spinner/Progress */}
+                          <div style={{ height: "4px", width: "100%", backgroundColor: "#222233", borderRadius: "2px", overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${respawnScanProgress}%`, backgroundColor: "#00f0ff", transition: "width 0.2s ease" }}></div>
+                          </div>
+                          <span style={{ fontSize: "12px", color: "#00f0ff", fontWeight: "700" }}>{respawnScanProgress}% Analyzed</span>
+                          <span style={{ fontSize: "11px", color: "#888", fontStyle: "italic" }}>{respawnScanMessage}</span>
+                        </div>
+                      );
+                    }
+
+                    if (!assessment) {
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                          <div style={{ fontSize: "12px", color: "#ffc83b", backgroundColor: "rgba(255, 170, 0, 0.05)", border: "1px dashed rgba(255, 170, 0, 0.3)", padding: "10px", borderRadius: "6px", lineHeight: "1.4" }}>
+                            ⚠️ <strong>Real-time Quality Analysis Required:</strong> To estimate resell value, lease potential, or salvage points, please upload 3 photos of your product for OpenCV AI defect detection.
+                          </div>
+                          
+                          <div style={{ fontSize: "12px" }}>
+                            <label style={{ display: "block", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>Select Condition Type:</label>
+                            <select 
+                              value={respawnReason}
+                              onChange={(e) => setRespawnReason(e.target.value)}
+                              style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #33334d", backgroundColor: "#12121a", color: "#fff", fontSize: "12px" }}
+                            >
+                              <option value="size_issue">No visible issues (Perfect Match)</option>
+                              <option value="color_difference">Minor scuffs / Color fading (OpenCV Mismatch)</option>
+                              <option value="defective_damaged">Visible scratches / Dents / Damages (OpenCV Defect)</option>
+                            </select>
+                          </div>
+
+                          <div style={{ fontSize: "12px" }}>
+                            <label style={{ display: "block", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>Visible Defects / Comments:</label>
+                            <input 
+                              type="text"
+                              value={respawnComments}
+                              onChange={(e) => setRespawnComments(e.target.value)}
+                              placeholder="e.g. minor scratches, clean borders"
+                              style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #33334d", backgroundColor: "#12121a", color: "#fff", fontSize: "12px" }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#ccc", marginBottom: "4px" }}>
+                              Upload 3 Photos (Front, Back, Detail):
+                            </label>
+                            <input 
+                              type="file" 
+                              multiple 
+                              accept="image/*"
+                              onChange={handleRespawnPhotoSelect}
+                              style={{ fontSize: "11px", color: "#888" }}
+                            />
+                            {respawnPhotos.length > 0 && (
+                              <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+                                {respawnPhotos.map((p, idx) => (
+                                  <div key={idx} style={{ width: "35px", height: "35px", backgroundImage: `url(${p})`, backgroundSize: "cover", backgroundPosition: "center", borderRadius: "4px", border: "1px solid #333" }}></div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={runRespawnAIScan}
+                            disabled={respawnPhotos.length < 3}
+                            style={{
+                              marginTop: "6px",
+                              width: "100%",
+                              padding: "8px",
+                              backgroundColor: respawnPhotos.length < 3 ? "#222" : "#00f0ff",
+                              color: respawnPhotos.length < 3 ? "#666" : "#000",
+                              border: "none",
+                              borderRadius: "4px",
+                              fontSize: "12px",
+                              fontWeight: "700",
+                              cursor: respawnPhotos.length < 3 ? "not-allowed" : "pointer",
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            ⚡ RUN OPENCV AI INSPECTION
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // Assessment exists - render full product stats dynamically
+                    const getConditionText = (grade: string) => {
+                      if (grade === "A+" || grade === "A") return "Excellent";
+                      if (grade === "B+" || grade === "B") return "Good";
+                      if (grade === "C") return "Fair";
+                      return "Poor";
+                    };
+
+                    const conditionStyleColor = 
+                      assessment.assignedGrade.startsWith("A") ? "#00ff88" :
+                      assessment.assignedGrade.startsWith("B") ? "#ffaa00" : "#ff4444";
+
+                    return (
+                      <>
+                        <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                          <div style={{
+                            width: "60px", 
+                            height: "60px", 
+                            backgroundImage: `url(${respawnItem.itemImage})`, 
+                            backgroundSize: "contain", 
+                            backgroundPosition: "center", 
+                            backgroundRepeat: "no-repeat", 
+                            backgroundColor: "#fff", 
+                            borderRadius: "6px",
+                            flexShrink: 0,
+                            border: "1px solid #222"
+                          }}></div>
+                          <div style={{ fontSize: "12px" }}>
+                            <strong style={{ fontSize: "13px", color: "#fff", display: "block" }}>{respawnItem.itemName}</strong>
+                            <span style={{ color: "#777", display: "block" }}>Category: Audio | Original Price: ₹29,990</span>
+                            <span style={{ color: "#a0a0c0", display: "block", marginTop: "2px" }}>
+                              Condition: <strong style={{ color: conditionStyleColor }}>{getConditionText(assessment.assignedGrade)}</strong> | Defects: {assessment.analysisMetrics.damageDetails || "No structural defects detected."}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Badges / Checkmarks */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "11px" }}>
+                          
+                          {/* AI Verified Badge */}
+                          <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
+                            <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                              ✓ AI Grade: {assessment.assignedGrade} ({100 - (assessment.analysisMetrics.mismatchScore || 0)}%)
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setActiveVerificationImage("ai-inspect")}
+                              style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
+                            >
+                              [View AI Scan Image]
+                            </button>
+                          </div>
+
+                          {/* Human Verified Badge */}
+                          <div style={{ border: "1px solid #222233", borderRadius: "6px", padding: "8px", backgroundColor: "#111119" }}>
+                            <div style={{ color: "#00ff88", fontWeight: "700", display: "flex", alignItems: "center", gap: "4px" }}>
+                              ✓ QA Auditor Verified
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setActiveVerificationImage("human-inspect")}
+                              style={{ display: "block", background: "none", border: "none", color: "#00f0ff", padding: 0, cursor: "pointer", fontSize: "10px", marginTop: "4px", textDecoration: "underline" }}
+                            >
+                              [View QA Audit Photo]
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginTop: "10px" }}>
+                          <a href="#health-card" onClick={(e) => { e.preventDefault(); alert("Viewing digital condition health card: All components verified functional."); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• Health Card: View</a>
+                          <a href="#full-inspect" onClick={(e) => { e.preventDefault(); alert(`Inspection Report: Mismatch Score: ${assessment.analysisMetrics.mismatchScore}%, Threshold: ${assessment.analysisMetrics.mismatchThreshold}%`); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• [View Full Inspection]</a>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+              </div>
+
+              {/* Circular Commerce Banner */}
+              <div style={{ backgroundColor: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255, 170, 0, 0.3)", borderRadius: "8px", padding: "12px 16px", fontSize: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px" }}>💡</span>
+                <p style={{ margin: 0, color: "#ffc83b", lineHeight: "1.4" }}>
+                  <strong>Circular Action Alert:</strong> Electronics items in this category are frequently <strong>underused and discarded</strong> despite being perfectly usable. Prevent e-waste and maximize value by choosing one of the lifecycle paths below!
+                </p>
+              </div>
+
+              {/* WHAT DO YOU WANT TO DO? Section */}
+              <div>
+                <h4 style={{ fontSize: "14px", fontWeight: "700", marginBottom: "12px", borderBottom: "1px solid #222233", paddingBottom: "6px", color: "#a0a0c0" }}>
+                  WHAT DO YOU WANT TO DO?
+                </h4>
+                
+                {/* 6 Grid Action Options */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "16px" }}>
+                  
+                  {/* Option 1: P2P */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("p2p")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "p2p" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "p2p" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>🏠</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>P2P Resell</div>
+                    <div style={{ fontSize: "9px", color: "#888" }}>Sell to Neighbors</div>
+                  </button>
+
+                  {/* Option 2: Refurb */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("refurb")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "refurb" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "refurb" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>🔧</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>Refurb & Resell</div>
+                    <div style={{ fontSize: "9px", color: "#888" }}>Via Amazon Network</div>
+                  </button>
+
+                  {/* Option 3: Lease (Underused) */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("lease")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "lease" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "lease" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>🤝</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>Lease / Share</div>
+                    <div style={{ fontSize: "9px", color: "#ffaa00" }}>Underused Path</div>
+                  </button>
+
+                  {/* Option 4: Donate */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("donate")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "donate" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "donate" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>🎁</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>Donate</div>
+                    <div style={{ fontSize: "9px", color: "#888" }}>To Local NGOs</div>
+                  </button>
+
+                  {/* Option 5: Recycle */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("recycle")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "recycle" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "recycle" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>♻️</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>Recycle</div>
+                    <div style={{ fontSize: "9px", color: "#888" }}>Zero-Waste Eco</div>
+                  </button>
+
+                  {/* Option 6: Salvage (Discarded but usable) */}
+                  <button 
+                    type="button"
+                    onClick={() => setRespawnOption("salvage")}
+                    style={{
+                      padding: "12px 8px",
+                      borderRadius: "6px",
+                      border: respawnOption === "salvage" ? "2px solid #00f0ff" : "1px solid #222233",
+                      backgroundColor: respawnOption === "salvage" ? "rgba(0,240,255,0.06)" : "#111119",
+                      color: "#fff",
+                      cursor: "pointer",
+                      textAlign: "center"
+                    }}
+                  >
+                    <div style={{ fontSize: "18px" }}>🗑️</div>
+                    <div style={{ fontSize: "12px", fontWeight: "700", marginTop: "4px" }}>Eco-Salvage</div>
+                    <div style={{ fontSize: "9px", color: "#ffaa00" }}>Discarded Path</div>
+                  </button>
+
+                </div>
+
+                {/* Conditional Input / Configuration Panels */}
+                <div style={{ border: "1px solid #222233", borderRadius: "8px", padding: "16px", backgroundColor: "#0f0f15", fontSize: "12px" }}>
+                  
+                  {/* P2P Resell Panel */}
+                  {respawnOption === "p2p" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>YOUR EXPECTED PRICE (₹):</span>
+                        <input 
+                          type="number" 
+                          placeholder="e.g. 19500" 
+                          value={expectedPrice}
+                          onChange={(e) => setExpectedPrice(e.target.value)}
+                          style={{ padding: "6px 10px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", width: "120px", fontSize: "12px" }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: "4px" }}>
+                        <div>
+                          <span style={{ color: "#777" }}>AI SUGGESTED RANGE:</span>
+                          <strong style={{ color: "#00ff88", marginLeft: "6px" }}>₹18,500 – ₹21,000</strong>
+                        </div>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button 
+                            type="button" 
+                            onClick={() => setExpectedPrice("19500")}
+                            style={{ padding: "4px 8px", backgroundColor: "#222", border: "1px solid #444", borderRadius: "4px", color: "#fff", cursor: "pointer", fontSize: "10px" }}
+                          >
+                            Use AI Price
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => setExpectedPrice("")}
+                            style={{ padding: "4px 8px", backgroundColor: "transparent", border: "none", color: "#00f0ff", cursor: "pointer", fontSize: "10px", textDecoration: "underline" }}
+                          >
+                            Set My Own Price
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>NEARBY SEARCH RADIUS:</span>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          {["5km", "10km", "25km", "50km"].map((rad) => (
+                            <button
+                              key={rad}
+                              type="button"
+                              onClick={() => setSelectedRadius(rad)}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: "4px",
+                                border: selectedRadius === rad ? "1px solid #00f0ff" : "1px solid #333",
+                                backgroundColor: selectedRadius === rad ? "rgba(0,240,255,0.1)" : "transparent",
+                                color: selectedRadius === rad ? "#00f0ff" : "#888",
+                                cursor: "pointer",
+                                fontSize: "10px"
+                              }}
+                            >
+                              {rad === "5km" ? "5km ▼" : rad}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Refurb & Resell Panel */}
+                  {respawnOption === "refurb" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <strong style={{ color: "#00f0ff" }}>REFURB ROUTE PREVIEW:</strong>
+                      <div style={{
+                        display: "flex", 
+                        alignItems: "center", 
+                        gap: "6px", 
+                        overflowX: "auto", 
+                        padding: "8px 0", 
+                        fontSize: "11px", 
+                        color: "#ddd"
+                      }}>
+                        <span>Gurgaon</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Delhi City</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Haryana Hub</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Delhi Main</span> <span style={{ color: "#777" }}>➔</span>
+                        <span style={{ color: "#00ff88", fontWeight: "700" }}>Sony Service Center</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => alert("Loading dynamic logistics tracking path on OpenStreetMap network...")}
+                        style={{ alignSelf: "flex-start", background: "none", border: "none", color: "#00f0ff", padding: 0, textDecoration: "underline", fontSize: "11px", cursor: "pointer" }}
+                      >
+                        [View Full Route Map]
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Lease / Share Panel */}
+                  {respawnOption === "lease" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>DAILY LEASE RATE (₹/day):</span>
+                        <input 
+                          type="number" 
+                          placeholder="e.g. 300" 
+                          value={rentalLeasePrice}
+                          onChange={(e) => setRentalLeasePrice(e.target.value)}
+                          style={{ padding: "6px 10px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", width: "120px", fontSize: "12px" }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: "4px" }}>
+                        <div>
+                          <span style={{ color: "#777" }}>RECOMMENDED RATE:</span>
+                          <strong style={{ color: "#ffaa00", marginLeft: "6px" }}>₹250 – ₹350/day</strong>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setRentalLeasePrice("300")}
+                          style={{ padding: "4px 8px", backgroundColor: "#222", border: "1px solid #444", borderRadius: "4px", color: "#fff", cursor: "pointer", fontSize: "10px" }}
+                        >
+                          Use AI Suggested Rent
+                        </button>
+                      </div>
+                      <p style={{ margin: 0, color: "#888", fontSize: "11px", lineHeight: "1.4" }}>
+                        * Underused Item: By leasing your device, you retain absolute ownership. Deliveries and pick-ups are handled automatically via our hyper-local courier partner.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Donate Panel */}
+                  {respawnOption === "donate" && (
+                    <div>
+                      <strong style={{ color: "#00ff88", display: "block", marginBottom: "6px" }}>NEARBY NGOs: 3 found in 10km radius</strong>
+                      <ul style={{ margin: 0, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "4px", color: "#ddd" }}>
+                        <li>• <strong>Goonj Gurgaon</strong> - Sector 45 (Accepts electronics, clothing, stationery)</li>
+                        <li>• <strong>Child Trust India</strong> - DLF Phase 3 (Accepts learning items, tablets, headphones)</li>
+                        <li>• <strong>HelpAge India</strong> - Golf Course Road (Accepts wellness, entertainment, and utility devices)</li>
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recycle Panel */}
+                  {respawnOption === "recycle" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <strong style={{ color: "#ffaa00" }}>E-WASTE CERTIFICATE & RECOVERY:</strong>
+                      <p style={{ margin: 0, lineHeight: "1.4", color: "#ddd" }}>
+                        By recycling, you prevent chemical ground pollution and recover valuable raw copper/gold alloys.
+                      </p>
+                      <div style={{ border: "1px solid rgba(0,255,136,0.3)", borderRadius: "4px", padding: "8px 12px", backgroundColor: "rgba(0,255,136,0.04)", color: "#00ff88", fontSize: "11px", display: "flex", justifyContent: "space-between" }}>
+                        <span>Estimated Carbon Credit:</span>
+                        <strong>2.3kg CO₂ saved</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Eco-Salvage Panel */}
+                  {respawnOption === "salvage" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <strong style={{ color: "#00ff88" }}>DISCARDED HARDWARE ECO-SALVAGE:</strong>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>Target Institution:</span>
+                        <select 
+                          value={salvageTarget} 
+                          onChange={(e) => setSalvageTarget(e.target.value)}
+                          style={{ padding: "6px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", fontSize: "12px", width: "240px" }}
+                        >
+                          <option value="Gurgaon Government High School">Gurgaon Government High School (Computer Lab)</option>
+                          <option value="Haryana Public Library">Haryana Public Library (Study Room)</option>
+                          <option value="Asha Foundation Skill Center">Asha Foundation Skill Center (Training Hub)</option>
+                        </select>
+                      </div>
+                      <div style={{ border: "1px solid rgba(255,170,0,0.3)", borderRadius: "4px", padding: "8px 12px", backgroundColor: "rgba(255,170,0,0.04)", color: "#ffaa00", fontSize: "11px" }}>
+                        Salvagable Device: Earn flat <strong>200 Green Point Credits</strong> redeemable for partner ecosystem coupons!
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
 
-              <div style={{ backgroundColor: "#202030", padding: "12px", borderRadius: "6px", borderLeft: "4px solid #00f0ff", fontSize: "13px", lineHeight: "1.5" }}>
-                💡 <strong>What is RESPawn?</strong> Since your 7-day return period has expired, this item is eligible for the RESPawn trade-in program. Send this item back to us, and we will inspect it to give it a second life. You will receive up to <strong>70% cashback</strong> depending on its condition, or recycle it for premium platform credits!
+              {/* Agreement Checkbox */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", borderTop: "1px solid #222233", paddingTop: "15px" }}>
+                <input 
+                  type="checkbox" 
+                  id="agreeTerms" 
+                  checked={agreedToTerms} 
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                />
+                <label htmlFor="agreeTerms" style={{ fontSize: "12px", color: "#ccc", cursor: "pointer" }}>
+                  I agree to Respawn Terms & AI-verified condition
+                </label>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div style={{ border: "1px solid #2a2a3c", padding: "12px", borderRadius: "6px", backgroundColor: "#13131d" }}>
-                  <h4 style={{ fontSize: "12px", fontWeight: "700", color: "#00ff88", marginBottom: "6px" }}>Option A: Resell / Trade-In</h4>
-                  <p style={{ fontSize: "11px", color: "#c0c0d0", lineHeight: "1.4" }}>Get up to 70% value in wallet cash depending on refurbished grade.</p>
-                </div>
-                <div style={{ border: "1px solid #2a2a3c", padding: "12px", borderRadius: "6px", backgroundColor: "#13131d" }}>
-                  <h4 style={{ fontSize: "12px", fontWeight: "700", color: "#ffaa00", marginBottom: "6px" }}>Option B: Green Recycle</h4>
-                  <p style={{ fontSize: "11px", color: "#c0c0d0", lineHeight: "1.4" }}>Eco-friendly materials recovery. Receive flat 20% carbon offsets and coupon bonuses.</p>
-                </div>
-              </div>
-
-              <div style={{ border: "1px solid #ffaa00", borderRadius: "6px", padding: "10px 12px", fontSize: "11px", color: "#ffaa00", backgroundColor: "rgba(255,170,0,0.05)" }}>
-                ⚡ <em>Note: RESPawn is an exclusive hackathon feature created to promote zero-waste circular commerce.</em>
-              </div>
             </div>
 
             {/* Footer */}
-            <div style={{ display: "flex", gap: "10px", padding: "15px 20px", borderTop: "1px solid #28283d", justifyContent: "flex-end", backgroundColor: "#12121a" }}>
+            <div style={{ display: "flex", gap: "10px", padding: "16px 24px", borderTop: "1px solid #222233", justifyContent: "flex-end", backgroundColor: "rgba(255,255,255,0.01)" }}>
               <button 
                 type="button" 
-                style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "transparent", color: "#ccc", border: "1px solid #444", cursor: "pointer" }}
+                style={{ padding: "8px 16px", borderRadius: "4px", backgroundColor: "transparent", color: "#ccc", border: "1px solid #444", cursor: "pointer", fontSize: "13px" }}
                 onClick={() => setRespawnItem(null)}
               >
                 Close
               </button>
               <button 
                 type="button" 
+                disabled={!agreedToTerms}
                 style={{
-                  padding: "8px 16px",
+                  padding: "8px 20px",
                   borderRadius: "4px",
-                  background: "linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)",
-                  color: "#000",
+                  background: agreedToTerms ? "linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)" : "#333",
+                  color: agreedToTerms ? "#000" : "#777",
                   fontWeight: "700",
                   border: "none",
-                  cursor: "pointer",
-                  boxShadow: "0 0 10px rgba(0,240,255,0.4)"
+                  cursor: agreedToTerms ? "pointer" : "not-allowed",
+                  boxShadow: agreedToTerms ? "0 0 12px rgba(0,240,255,0.4)" : "none",
+                  fontSize: "13px"
                 }}
                 onClick={() => {
-                  alert("Initiating RESPawn evaluation! You will receive a pre-paid mail-in envelope to ship your device for grading.");
+                  const dataToPass = {
+                    item: {
+                      id: respawnItem.productId,
+                      name: respawnItem.itemName,
+                      image: respawnItem.itemImage,
+                      price: 0
+                    },
+                    type: respawnOption
+                  };
+                  sessionStorage.setItem("pendingRespawn", JSON.stringify(dataToPass));
                   setRespawnItem(null);
+                  router.push("/respawn");
                 }}
               >
-                Start RESPawn Flow
+                🚀 INITIATE RESPawn ROUTING
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          INSPECTION IMAGE VERIFICATION ZOOM OVERLAY
+         ======================================================== */}
+      {activeVerificationImage && respawnItem && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: "20px" }}>
+          <div style={{
+            background: "#181824",
+            color: "#fff",
+            borderRadius: "10px",
+            maxWidth: "600px",
+            width: "100%",
+            border: "1px solid #3b3b5c",
+            overflow: "hidden",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.6)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #28283d" }}>
+              <strong style={{ fontSize: "14px", color: "#00f0ff" }}>
+                {activeVerificationImage === "ai-inspect" ? "🔍 AI Scan Verification Check" : "🛡️ QA Auditor Seal Verification"}
+              </strong>
+              <button 
+                type="button" 
+                style={{ background: "none", border: "none", color: "#aaa", cursor: "pointer", fontSize: "12px" }}
+                onClick={() => setActiveVerificationImage(null)}
+              >
+                Close [X]
+              </button>
+            </div>
+            <div style={{ padding: "20px", textAlign: "center" }}>
+              {activeVerificationImage === "ai-inspect" ? (
+                (() => {
+                  const assessment = returnAssessments[respawnItem.orderId];
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                        <div>
+                          <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>FACTORY REFERENCE (M1)</span>
+                          <div style={{ border: "1px solid #333", borderRadius: "6px", overflow: "hidden", backgroundColor: "#fff", height: "180px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <img 
+                              src={assessment?.analysisMetrics?.factoryImage || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80"} 
+                              alt="Factory Reference" 
+                              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: "11px", color: "#888", display: "block", marginBottom: "4px" }}>USER RETURN IMAGE (U1)</span>
+                          <div style={{ border: "2px solid #00ff88", borderRadius: "6px", overflow: "hidden", backgroundColor: "#fff", height: "180px", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                            <img 
+                              src={assessment?.uploadedImages?.[0] || respawnItem.itemImage} 
+                              alt="User Return" 
+                              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                            />
+                            {/* Scanner overlay effect */}
+                            <div style={{ position: "absolute", top: "10%", left: 0, right: 0, height: "2px", backgroundColor: "#00ff88", boxShadow: "0 0 8px #00ff88" }}></div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ backgroundColor: "rgba(0,255,136,0.08)", color: "#00ff88", border: "1px solid rgba(0,255,136,0.3)", padding: "10px", borderRadius: "6px", fontSize: "12px", textAlign: "left", lineHeight: "1.4" }}>
+                        <strong>OpenCV Comparison Results:</strong><br />
+                        • Mismatch Score: {assessment?.analysisMetrics?.mismatchScore || 0}% (Threshold: {assessment?.analysisMetrics?.mismatchThreshold || 15}%)<br />
+                        • Defects Detected: {assessment?.analysisMetrics?.damageDetails || "None detected."}
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div style={{ border: "2px dashed #00f0ff", borderRadius: "6px", padding: "16px", backgroundColor: "#111119" }}>
+                  <div style={{ fontSize: "48px", marginBottom: "10px" }}>🛡️</div>
+                  <h4 style={{ margin: "0 0 6px 0", color: "#00f0ff" }}>QA AUDITOR VERIFICATION SEAL</h4>
+                  <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#ccc" }}>
+                    Facility: Delhi NCR Warehouse Hub<br />
+                    Auditor ID: #QA-8829<br />
+                    Inspection Stamp ID: <strong>9982-XM5-PASSED</strong>
+                  </p>
+                  <span style={{ fontSize: "11px", color: "#00ff88", display: "block", backgroundColor: "rgba(0,255,136,0.05)", padding: "4px", borderRadius: "4px" }}>
+                    🟢 Physically Inspected & Verified 100% Functional
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

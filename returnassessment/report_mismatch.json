@@ -1,0 +1,55 @@
+{
+  "product_info": {
+    "category": "fashion",
+    "brand_model": "Puma RS-Z Sneakers",
+    "return_reason": "color_difference",
+    "days_since_delivery": 4
+  },
+  "overall_mismatch_score": 23.33,
+  "mismatch_threshold": 15.0,
+  "status": "Flagged (Manual Review)",
+  "human_check_required": true,
+  "simulated_human_verification": {
+    "decision": "Approved",
+    "verified_by": "System Auto-Verificator (Simulated)",
+    "reason": "Verified anomalies fall within acceptable manufacturing tolerances."
+  },
+  "remarks": "Mismatch score of 23.3% exceeds threshold (15.0%). Human review requested.",
+  "cross_verified_defects": [
+    {
+      "type": "discoloration_fading",
+      "occurrences": [
+        {
+          "angle": "front_view",
+          "severity": "high",
+          "details": "Color shift detected (delta Hue: 105.0)."
+        }
+      ],
+      "is_cross_verified": false,
+      "final_severity": "high"
+    }
+  ],
+  "per_angle_results": [
+    {
+      "angle": "front_view",
+      "mismatch_score": 23.33,
+      "defects_detected": [
+        {
+          "type": "discoloration_fading",
+          "severity": "high",
+          "details": "Color shift detected (delta Hue: 105.0)."
+        }
+      ]
+    },
+    {
+      "angle": "back_view",
+      "mismatch_score": 0.0,
+      "defects_detected": []
+    },
+    {
+      "angle": "detail_view",
+      "mismatch_score": 0.0,
+      "defects_detected": []
+    }
+  ]
+}
