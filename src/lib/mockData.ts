@@ -19,6 +19,36 @@ export interface Variation {
   options: string[];
 }
 
+export interface HealthCardReturnEntry {
+  id: number;
+  reason: string;
+  count?: number;
+  info?: string;
+}
+
+export interface HealthCardData {
+  id?: string;
+  grade: string;
+  confidence: number;
+  returns: HealthCardReturnEntry[];
+  routed: string;
+  manufacturerNote: string;
+  sustainability: string;
+  generatedDate?: string;
+  blockchainHash?: string;
+  images?: string[];
+  mismatchScore?: number;
+  crossVerifiedDefects?: any[];
+}
+
+export interface RespawnData {
+  isRespawned: boolean;
+  healthCardId?: string;
+  grade?: string;
+  currentStage?: number;
+  status?: string;
+}
+
 export interface Product {
   id: string;
   _id?: string; // for MongoDB
@@ -41,6 +71,7 @@ export interface Product {
   reviews: Review[];
   qas: QA[];
   seller: string;
+  respawn?: RespawnData;
 }
 
 export const CATEGORIES = [
@@ -602,8 +633,46 @@ export const PRODUCTS: Product[] = [
     isPrime: true, isBestSeller: false, isChoice: false, stock: 50, seller: "Sports Wing India",
     reviews: [{ id: "r1", userName: "Vishal R.", rating: 4, date: "15 May 2026", title: "Good for daily practice", text: "Holds air well and the grip is decent. Good quality for the price point.", helpfulVotes: 15 }],
     qas: [{ id: "q1", question: "Does it come inflated?", answer: "No, it comes deflated. A needle is included for inflation but you'll need a pump." }]
+  },
+  // =============================================
+  // RESPAWNED PRODUCTS (1 product)
+  // =============================================
+  {
+    id: "respawn-wireless-mouse",
+    name: "Logitech MX Master 3S Wireless Mouse - Refurbished",
+    description: "Fully inspected and restored by RESPawn AI. The MX Master 3S offers quiet clicks and an 8000 DPI track-on-glass sensor. Note: Minor cosmetic wear.",
+    price: 6499, mrp: 10995, rating: 4.8, ratingCount: 412, category: "electronics",
+    image: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&auto=format&fit=crop&q=80",
+    thumbnails: ["https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=500&auto=format&fit=crop&q=80"],
+    variations: [{ name: "Color", options: ["Graphite"] }],
+    specs: { "Brand": "Logitech", "Model": "MX Master 3S", "Connectivity": "Bluetooth / Logi Bolt", "Sensor": "8000 DPI Darkfield", "Battery": "Up to 70 days" },
+    whatInBox: ["Refurbished MX Master 3S", "Logi Bolt USB Receiver", "USB-C Charging Cable"],
+    isPrime: true, isBestSeller: false, isChoice: false, stock: 3, seller: "Respawn Certified Refurbished",
+    reviews: [{ id: "r1", userName: "Techie Guy", rating: 5, date: "12 June 2026", title: "Like new!", text: "Couldn't tell it was refurbished. Works perfectly.", helpfulVotes: 5 }],
+    qas: [{ id: "q1", question: "Does it come with warranty?", answer: "Yes, it comes with a 6-month RESPawn warranty." }],
+    respawn: {
+      isRespawned: true,
+      healthCardId: "hc-1",
+      grade: "B"
+    }
   }
 ];
+
+export const HEALTH_CARDS: Record<string, HealthCardData> = {
+  "hc-1": {
+    grade: "B",
+    confidence: 82,
+    returns: [
+      { id: 1, reason: "Too small (Size M)", count: 2 },
+      { id: 2, reason: "Color mismatch" }
+    ],
+    routed: "REFURBISH",
+    manufacturerNote: "v2.1 adjusted sizing",
+    sustainability: "0.3kg saved",
+    generatedDate: "2026-06-15",
+    blockchainHash: "0x8f7b...3c1a"
+  }
+};
 
 export const SIMULATED_ACCOUNTS = [
   { id: "acc-1", name: "Vishal Rawat", pincode: "110001", city: "New Delhi" },

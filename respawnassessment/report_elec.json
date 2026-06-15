@@ -1,0 +1,43 @@
+{
+  "product_info": {
+    "category": "electronics",
+    "brand_model": "Test Phone"
+  },
+  "overall_mismatch_score": 8.83,
+  "mismatch_threshold": 15.0,
+  "status": "Approved (Auto-Refund)",
+  "human_check_required": false,
+  "simulated_human_verification": null,
+  "remarks": "Inspection passed. Mismatch score of 8.8% is within limits.",
+  "cross_verified_defects": [
+    {
+      "aspect": "Color Condition",
+      "occurrences": [
+        {
+          "angle": "front_view",
+          "severity": "high",
+          "details": "Color shift detected (Delta: 53.0). Possible screen burn-in or surface discoloration."
+        }
+      ],
+      "is_cross_verified": false,
+      "final_severity": "high"
+    }
+  ],
+  "per_angle_results": [
+    {
+      "angle": "front_view",
+      "mismatch_score": 8.83,
+      "defects_detected": [
+        {
+          "aspect": "Color Condition",
+          "severity": "high",
+          "details": "Color shift detected (Delta: 53.0). Possible screen burn-in or surface discoloration."
+        }
+      ],
+      "diff_files": {
+        "color_diff": "respawnassessment/diffs/front_view_color_diff.jpg",
+        "edge_diff": "respawnassessment/diffs/front_view_edges_diff.jpg"
+      }
+    }
+  ]
+}

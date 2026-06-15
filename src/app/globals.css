@@ -1539,3 +1539,159 @@ button {
   background-color: var(--amazon-orange-hover);
   transition: width 0.1s linear;
 }
+
+/* ----------------------------------------------------
+/* ----------------------------------------------------
+   HEALTH CARD STYLING (AMAZON THEME)
+   ---------------------------------------------------- */
+.health-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #fff;
+  overflow: hidden;
+  margin-top: 15px;
+  font-family: inherit;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  color: #111;
+}
+
+.health-card-header {
+  background: linear-gradient(to bottom, #fef4e2, #ffe4b5);
+  border-bottom: 2px solid #ff9900;
+  color: #111;
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.health-card-title {
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #111;
+}
+
+.health-card-body {
+  padding: 15px;
+  background-color: #fff;
+}
+
+.health-grade-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px dashed #ddd;
+}
+
+.health-grade-badge {
+  background-color: #ff9900;
+  color: #111;
+  font-size: 28px;
+  font-weight: 900;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(255, 153, 0, 0.4);
+  border: 2px solid #e68a00;
+}
+
+.health-grade-badge.grade-A { background-color: #007600; color: #fff; border-color: #005a00; }
+.health-grade-badge.grade-B { background-color: #008296; color: #fff; border-color: #006070; }
+.health-grade-badge.grade-C { background-color: #e47911; color: #fff; border-color: #c06000; }
+.health-grade-badge.grade-D, .health-grade-badge.grade-F { background-color: #b12704; color: #fff; border-color: #8a1f03; }
+
+.health-confidence {
+  font-size: 13px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.health-details {
+  padding-top: 5px;
+}
+
+.health-detail-item {
+  font-size: 13px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.health-detail-label {
+  font-weight: 800;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.health-returns-list {
+  list-style: none;
+  padding-left: 12px;
+  border-left: 3px solid #ff9900;
+  margin-top: 4px;
+}
+
+.health-returns-list li {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 6px;
+}
+
+.health-footer {
+  background-color: #f3f3f3;
+  padding: 12px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #ddd;
+}
+
+.health-sustainability {
+  font-size: 12px;
+  color: #007600;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.health-verify-btn {
+  background-color: #ffd814;
+  border: 1px solid #fcd200;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #111;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.health-verify-btn:hover {
+  background-color: #f7ca00;
+  border-color: #f2c200;
+}
+
+.respawn-tag {
+  background-color: #ff9900;
+  color: #111;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #e68a00;
+}
+

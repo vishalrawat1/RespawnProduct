@@ -26,6 +26,7 @@ import {
   Home,
   Star
 } from "lucide-react";
+import HealthCard from "@/components/HealthCard";
 
 interface OrderItem {
   id: string;
@@ -89,6 +90,7 @@ export default function OrdersPage() {
     productId: string;
     itemName: string;
     itemImage: string;
+    price?: number;
   } | null>(null);
   
   const [returnReason, setReturnReason] = useState("");
@@ -100,12 +102,13 @@ export default function OrdersPage() {
   const [respawnOption, setRespawnOption] = useState<"p2p" | "refurb" | "donate" | "recycle" | "lease" | "salvage">("p2p");
   const [expectedPrice, setExpectedPrice] = useState("");
   const [selectedRadius, setSelectedRadius] = useState("5km");
-  const [editedAddress, setEditedAddress] = useState("Sector 56, Gurgaon, Haryana - 122018");
+  const [editedAddress, setEditedAddress] = useState("Rajpur Road, Dehradun, Uttarakhand - 248001");
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [activeVerificationImage, setActiveVerificationImage] = useState<string | null>(null);
+  const [showHealthCard, setShowHealthCard] = useState(false);
   const [rentalLeasePrice, setRentalLeasePrice] = useState("");
-  const [salvageTarget, setSalvageTarget] = useState("Gurgaon Government High School");
+  const [salvageTarget, setSalvageTarget] = useState("Dehradun Government High School");
 
   // Inline RESPawn inspection states
   const [isInspectingRespawn, setIsInspectingRespawn] = useState(false);
@@ -449,6 +452,31 @@ export default function OrdersPage() {
           ...prev,
           [respawnItem.orderId]: data.assessment
         }));
+
+        // Push HealthCard to backend
+        const hcData = {
+          id: data.assessment.id,
+          grade: data.assessment.assignedGrade,
+          confidence: data.assessment.confidenceScore,
+          returns: [{ id: 1, reason: data.assessment.returnReason, count: 1 }],
+          routed: data.assessment.status === "Approved (Sent to Manufacturer)" ? "Manufacturer RMA" : "Secondary Market Resell",
+          manufacturerNote: data.assessment.historyInsights,
+          sustainability: "Eco-Verified Inspection",
+          generatedDate: new Date().toISOString().split("T")[0],
+          images: data.assessment.uploadedImages,
+          mismatchScore: data.assessment.analysisMetrics?.mismatchScore || 0,
+          crossVerifiedDefects: data.assessment.analysisMetrics?.crossVerifiedDefects || []
+        };
+
+        try {
+          await fetch("/api/healthcards", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(hcData)
+          });
+        } catch (hcErr) {
+          console.error("Failed to push HealthCard to backend:", hcErr);
+        }
         
         setIsInspectingRespawn(false);
         setRespawnPhotos([]);
@@ -715,7 +743,8 @@ export default function OrdersPage() {
                             orderId: order.id, 
                             productId: order.items[0].id,
                             itemName: order.items[0].name,
-                            itemImage: order.items[0].image
+                            itemImage: order.items[0].image,
+                            price: order.items[0].price
                           })}
                         >
                           ♻️ RESPawn
@@ -1024,7 +1053,8 @@ export default function OrdersPage() {
                                               orderId: order.id, 
                                               productId: order.items[0].id,
                                               itemName: order.items[0].name, 
-                                              itemImage: order.items[0].image 
+                                              itemImage: order.items[0].image,
+                                              price: order.items[0].price
                                             })}
                                             style={{
                                               display: "inline-flex", alignItems: "center", gap: "5px",
@@ -1721,8 +1751,60 @@ export default function OrdersPage() {
                         </div>
 
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginTop: "10px" }}>
-                          <a href="#health-card" onClick={(e) => { e.preventDefault(); alert("Viewing digital condition health card: All components verified functional."); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• Health Card: View</a>
+                          <button type="button" onClick={(e) => { e.preventDefault(); setShowHealthCard(!showHealthCard); }} style={{ color: "#00f0ff", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0 }}>• Health Card: {showHealthCard ? "Hide" : "View"}</button>
                           <a href="#full-inspect" onClick={(e) => { e.preventDefault(); alert(`Inspection Report: Mismatch Score: ${assessment.analysisMetrics.mismatchScore}%, Threshold: ${assessment.analysisMetrics.mismatchThreshold}%`); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• [View Full Inspection]</a>
+                        </div>
+                        
+                        {showHealthCard && (
+                          <div style={{ marginTop: "15px", animation: "fadeIn 0.3s ease-in-out" }}>
+                            <HealthCard 
+                              productId={respawnItem.productId} 
+                              data={{
+                                id: assessment.id,
+                                grade: assessment.assignedGrade,
+                                confidence: assessment.confidenceScore,
+                                returns: [{ id: 1, reason: assessment.returnReason, count: 1 }],
+                                routed: assessment.status === "Approved (Sent to Manufacturer)" ? "Manufacturer RMA" : "Secondary Market Resell",
+                                manufacturerNote: assessment.historyInsights,
+                                sustainability: "Eco-Verified Inspection",
+                                generatedDate: new Date().toISOString().split("T")[0],
+                                images: assessment.uploadedImages || [],
+                                mismatchScore: assessment.analysisMetrics?.mismatchScore || 0,
+                                crossVerifiedDefects: assessment.analysisMetrics?.crossVerifiedDefects || []
+                              }} 
+                            />
+                          </div>
+                        )}
+
+                        {/* Rescan and Restart Buttons */}
+                        <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+                          <button
+                            type="button"
+                            onClick={(e) => runRespawnAIScan(e as any)}
+                            style={{ flex: 1, padding: "6px", backgroundColor: "#111119", color: "#00f0ff", border: "1px solid #00f0ff", borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: "bold", transition: "background 0.2s" }}
+                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "rgba(0, 240, 255, 0.1)")}
+                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#111119")}
+                          >
+                            🔄 Rescan Images
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReturnAssessments(prev => {
+                                const next = { ...prev };
+                                delete next[respawnItem.orderId];
+                                return next;
+                              });
+                              setRespawnPhotos([]);
+                              setRespawnComments("");
+                              setRespawnReason("size_issue");
+                            }}
+                            style={{ flex: 1, padding: "6px", backgroundColor: "#111119", color: "#ff4444", border: "1px solid #ff4444", borderRadius: "4px", fontSize: "11px", cursor: "pointer", fontWeight: "bold", transition: "background 0.2s" }}
+                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "rgba(255, 68, 68, 0.1)")}
+                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#111119")}
+                          >
+                            🗑️ Restart Process
+                          </button>
                         </div>
                       </>
                     );
@@ -1868,65 +1950,75 @@ export default function OrdersPage() {
                 <div style={{ border: "1px solid #222233", borderRadius: "8px", padding: "16px", backgroundColor: "#0f0f15", fontSize: "12px" }}>
                   
                   {/* P2P Resell Panel */}
-                  {respawnOption === "p2p" && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span>YOUR EXPECTED PRICE (₹):</span>
-                        <input 
-                          type="number" 
-                          placeholder="e.g. 19500" 
-                          value={expectedPrice}
-                          onChange={(e) => setExpectedPrice(e.target.value)}
-                          style={{ padding: "6px 10px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", width: "120px", fontSize: "12px" }}
-                        />
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: "4px" }}>
-                        <div>
-                          <span style={{ color: "#777" }}>AI SUGGESTED RANGE:</span>
-                          <strong style={{ color: "#00ff88", marginLeft: "6px" }}>₹18,500 – ₹21,000</strong>
+                  {respawnOption === "p2p" && (() => {
+                    const originalPrice = respawnItem?.price || 29990;
+                    const assessment = respawnItem ? returnAssessments[respawnItem.orderId] : null;
+                    const mismatch = assessment?.analysisMetrics?.mismatchScore || 0;
+                    const depreciation = Math.max(0.2, 0.75 - (mismatch * 0.015)); 
+                    const suggestedMin = Math.floor(originalPrice * depreciation * 0.9);
+                    const suggestedMax = Math.floor(originalPrice * depreciation * 1.1);
+                    const suggestedAvg = Math.floor((suggestedMin + suggestedMax) / 2);
+                    
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>YOUR EXPECTED PRICE (₹):</span>
+                          <input 
+                            type="number" 
+                            placeholder={`e.g. ${suggestedAvg}`} 
+                            value={expectedPrice}
+                            onChange={(e) => setExpectedPrice(e.target.value)}
+                            style={{ padding: "6px 10px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", width: "120px", fontSize: "12px" }}
+                          />
                         </div>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <button 
-                            type="button" 
-                            onClick={() => setExpectedPrice("19500")}
-                            style={{ padding: "4px 8px", backgroundColor: "#222", border: "1px solid #444", borderRadius: "4px", color: "#fff", cursor: "pointer", fontSize: "10px" }}
-                          >
-                            Use AI Price
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => setExpectedPrice("")}
-                            style={{ padding: "4px 8px", backgroundColor: "transparent", border: "none", color: "#00f0ff", cursor: "pointer", fontSize: "10px", textDecoration: "underline" }}
-                          >
-                            Set My Own Price
-                          </button>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span>NEARBY SEARCH RADIUS:</span>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          {["5km", "10km", "25km", "50km"].map((rad) => (
-                            <button
-                              key={rad}
-                              type="button"
-                              onClick={() => setSelectedRadius(rad)}
-                              style={{
-                                padding: "4px 10px",
-                                borderRadius: "4px",
-                                border: selectedRadius === rad ? "1px solid #00f0ff" : "1px solid #333",
-                                backgroundColor: selectedRadius === rad ? "rgba(0,240,255,0.1)" : "transparent",
-                                color: selectedRadius === rad ? "#00f0ff" : "#888",
-                                cursor: "pointer",
-                                fontSize: "10px"
-                              }}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.02)", padding: "8px 12px", borderRadius: "4px" }}>
+                          <div>
+                            <span style={{ color: "#777" }}>AI SUGGESTED RANGE:</span>
+                            <strong style={{ color: "#00ff88", marginLeft: "6px" }}>₹{suggestedMin.toLocaleString()} – ₹{suggestedMax.toLocaleString()}</strong>
+                          </div>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button 
+                              type="button" 
+                              onClick={() => setExpectedPrice(suggestedAvg.toString())}
+                              style={{ padding: "4px 8px", backgroundColor: "#222", border: "1px solid #444", borderRadius: "4px", color: "#fff", cursor: "pointer", fontSize: "10px" }}
                             >
-                              {rad === "5km" ? "5km ▼" : rad}
+                              Use AI Price
                             </button>
-                          ))}
+                            <button 
+                              type="button" 
+                              onClick={() => setExpectedPrice("")}
+                              style={{ padding: "4px 8px", backgroundColor: "transparent", border: "none", color: "#00f0ff", cursor: "pointer", fontSize: "10px", textDecoration: "underline" }}
+                            >
+                              Set My Own Price
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>NEARBY SEARCH RADIUS:</span>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            {["5km", "10km", "25km", "50km"].map((rad) => (
+                              <button
+                                key={rad}
+                                type="button"
+                                onClick={() => setSelectedRadius(rad)}
+                                style={{
+                                  padding: "4px 10px",
+                                  borderRadius: "4px",
+                                  border: selectedRadius === rad ? "1px solid #00f0ff" : "1px solid #333",
+                                  backgroundColor: selectedRadius === rad ? "rgba(0,240,255,0.1)" : "transparent",
+                                  color: selectedRadius === rad ? "#00f0ff" : "#888",
+                                  cursor: "pointer",
+                                  fontSize: "10px"
+                                }}
+                              >
+                                {rad === "5km" ? "5km ▼" : rad}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Refurb & Resell Panel */}
                   {respawnOption === "refurb" && (
@@ -1941,9 +2033,9 @@ export default function OrdersPage() {
                         fontSize: "11px", 
                         color: "#ddd"
                       }}>
-                        <span>Gurgaon</span> <span style={{ color: "#777" }}>➔</span>
-                        <span>Delhi City</span> <span style={{ color: "#777" }}>➔</span>
-                        <span>Haryana Hub</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Dehradun</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Haridwar City</span> <span style={{ color: "#777" }}>➔</span>
+                        <span>Uttarakhand Hub</span> <span style={{ color: "#777" }}>➔</span>
                         <span>Delhi Main</span> <span style={{ color: "#777" }}>➔</span>
                         <span style={{ color: "#00ff88", fontWeight: "700" }}>Sony Service Center</span>
                       </div>
@@ -1994,9 +2086,9 @@ export default function OrdersPage() {
                     <div>
                       <strong style={{ color: "#00ff88", display: "block", marginBottom: "6px" }}>NEARBY NGOs: 3 found in 10km radius</strong>
                       <ul style={{ margin: 0, paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "4px", color: "#ddd" }}>
-                        <li>• <strong>Goonj Gurgaon</strong> - Sector 45 (Accepts electronics, clothing, stationery)</li>
-                        <li>• <strong>Child Trust India</strong> - DLF Phase 3 (Accepts learning items, tablets, headphones)</li>
-                        <li>• <strong>HelpAge India</strong> - Golf Course Road (Accepts wellness, entertainment, and utility devices)</li>
+                        <li>• <strong>Goonj Dehradun</strong> - Rajpur Road (Accepts electronics, clothing, stationery)</li>
+                        <li>• <strong>Child Trust India</strong> - Clement Town (Accepts learning items, tablets, headphones)</li>
+                        <li>• <strong>HelpAge India</strong> - Sahastradhara Road (Accepts wellness, entertainment, and utility devices)</li>
                       </ul>
                     </div>
                   )}
@@ -2026,9 +2118,9 @@ export default function OrdersPage() {
                           onChange={(e) => setSalvageTarget(e.target.value)}
                           style={{ padding: "6px", borderRadius: "4px", border: "1px solid #333", backgroundColor: "#111119", color: "#fff", fontSize: "12px", width: "240px" }}
                         >
-                          <option value="Gurgaon Government High School">Gurgaon Government High School (Computer Lab)</option>
-                          <option value="Haryana Public Library">Haryana Public Library (Study Room)</option>
-                          <option value="Asha Foundation Skill Center">Asha Foundation Skill Center (Training Hub)</option>
+                          <option value="Dehradun Government High School">Dehradun Government High School (Computer Lab)</option>
+                          <option value="Uttarakhand Public Library">Uttarakhand Public Library (Study Room)</option>
+                          <option value="Asha Foundation Skill Center (Dehradun)">Asha Foundation Skill Center (Training Hub)</option>
                         </select>
                       </div>
                       <div style={{ border: "1px solid rgba(255,170,0,0.3)", borderRadius: "4px", padding: "8px 12px", backgroundColor: "rgba(255,170,0,0.04)", color: "#ffaa00", fontSize: "11px" }}>
@@ -2085,7 +2177,9 @@ export default function OrdersPage() {
                       id: respawnItem.productId,
                       name: respawnItem.itemName,
                       image: respawnItem.itemImage,
-                      price: 0
+                      price: respawnOption === "p2p" ? parseInt(expectedPrice) || 19500 : 
+                             respawnOption === "lease" ? parseInt(rentalLeasePrice) || 300 : 
+                             19500
                     },
                     type: respawnOption
                   };
@@ -2161,8 +2255,38 @@ export default function OrdersPage() {
                       
                       <div style={{ backgroundColor: "rgba(0,255,136,0.08)", color: "#00ff88", border: "1px solid rgba(0,255,136,0.3)", padding: "10px", borderRadius: "6px", fontSize: "12px", textAlign: "left", lineHeight: "1.4" }}>
                         <strong>OpenCV Comparison Results:</strong><br />
-                        • Mismatch Score: {assessment?.analysisMetrics?.mismatchScore || 0}% (Threshold: {assessment?.analysisMetrics?.mismatchThreshold || 15}%)<br />
-                        • Defects Detected: {assessment?.analysisMetrics?.damageDetails || "None detected."}
+                        • Mismatch Score: <span style={{ color: (assessment?.analysisMetrics?.mismatchScore || 0) > (assessment?.analysisMetrics?.mismatchThreshold || 15) ? "#ff4444" : "#00ff88", fontWeight: "bold" }}>{assessment?.analysisMetrics?.mismatchScore || 0}%</span> (Threshold: {assessment?.analysisMetrics?.mismatchThreshold || 15}%)<br />
+                        
+                        {assessment?.analysisMetrics?.crossVerifiedDefects && assessment.analysisMetrics.crossVerifiedDefects.length > 0 ? (
+                          <div style={{ marginTop: "8px" }}>
+                            <strong style={{ color: "#ffaa00" }}>⚠️ Identified Anomalies:</strong>
+                            <ul style={{ margin: "4px 0 0 0", paddingLeft: "16px", color: "#ddd" }}>
+                              {assessment.analysisMetrics.crossVerifiedDefects.map((defect: any, idx: number) => {
+                                const severity = defect.final_severity || defect.severity || "medium";
+                                const type = defect.type || defect.aspect || "Anomaly";
+                                const details = defect.occurrences?.[0]?.details || defect.details || "Anomaly detected";
+                                return (
+                                  <li key={idx} style={{ marginBottom: "6px" }}>
+                                    <span style={{ 
+                                      backgroundColor: severity === "high" ? "rgba(255,68,68,0.2)" : "rgba(255,170,0,0.2)", 
+                                      color: severity === "high" ? "#ff4444" : "#ffaa00",
+                                      padding: "2px 6px", 
+                                      borderRadius: "4px", 
+                                      fontSize: "10px",
+                                      fontWeight: "bold",
+                                      marginRight: "6px"
+                                    }}>
+                                      {type.replace(/_/g, " ").toUpperCase()}
+                                    </span>
+                                    <span style={{ fontSize: "11px" }}>{details}</span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: "4px" }}>• Defects Detected: None detected.</div>
+                        )}
                       </div>
                     </div>
                   );
@@ -2172,7 +2296,7 @@ export default function OrdersPage() {
                   <div style={{ fontSize: "48px", marginBottom: "10px" }}>🛡️</div>
                   <h4 style={{ margin: "0 0 6px 0", color: "#00f0ff" }}>QA AUDITOR VERIFICATION SEAL</h4>
                   <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#ccc" }}>
-                    Facility: Delhi NCR Warehouse Hub<br />
+                    Facility: Dehradun Regional Hub<br />
                     Auditor ID: #QA-8829<br />
                     Inspection Stamp ID: <strong>9982-XM5-PASSED</strong>
                   </p>

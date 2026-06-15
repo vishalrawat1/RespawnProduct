@@ -1,0 +1,19 @@
+{
+  "manufacturer_reference_images": {
+    "front_view": "returnassessment/temp_test_images/puma-rs-z/m1.webp",
+    "back_view": "returnassessment/temp_test_images/puma-rs-z/m2.webp",
+    "detail_view": "returnassessment/temp_test_images/puma-rs-z/m3.webp"
+  },
+  "user_return_images": {
+    "user_front": "returnassessment/temp_test_images/puma-rs-z/m1.webp",
+    "user_back": "returnassessment/temp_test_images/puma-rs-z/m2.webp",
+    "user_detail": "returnassessment/temp_test_images/puma-rs-z/m3.webp",
+    "additional_angles": ["returnassessment/temp_test_images/puma-rs-z/m4.webp"]
+  },
+  "product_info": {
+    "category": "fashion",
+    "brand_model": "Puma RS-Z Sneakers",
+    "return_reason": "size_issue",
+    "days_since_delivery": 3
+  }
+}
