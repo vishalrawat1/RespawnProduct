@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { PRODUCTS, Product } from "@/lib/mockData";
+import { MOCK_RESPAWNED } from "@/app/api/respawned/route";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -20,7 +21,37 @@ export async function GET(req: NextRequest) {
     // ----------------------------------------------------
     // MOCK MODE FALLBACK: Local JS filtering
     // ----------------------------------------------------
-    let filtered = [...PRODUCTS];
+    const mappedRespawned: Product[] = MOCK_RESPAWNED.map((r: any) => ({
+      id: r.id,
+      name: r.name + " (Certified Refurbished)",
+      description: `RESPawn AI Certified item from ${r.type}. Fully inspected. ID: ${r.productbuyid || r.id}`,
+      price: r.price,
+      mrp: r.price * 1.5,
+      rating: 4.5,
+      ratingCount: 1,
+      category: "electronics",
+      image: r.image,
+      thumbnails: [r.image],
+      variations: [],
+      specs: { "Condition": "Refurbished", "Source": r.type },
+      whatInBox: ["Refurbished Item", "Inspection Report"],
+      isPrime: true,
+      isBestSeller: false,
+      isChoice: false,
+      stock: 1,
+      seller: "Respawn Certified Refurbished",
+      reviews: [],
+      qas: [],
+      respawn: {
+        isRespawned: true,
+        healthCardId: r.healthCardId,
+        grade: r.healthCardData?.grade || "A",
+        currentStage: r.currentStage,
+        status: r.status
+      }
+    }));
+
+    let filtered = respawnOnly ? [...mappedRespawned] : [...mappedRespawned, ...PRODUCTS];
 
     if (q) {
       const query = q.toLowerCase();
@@ -138,10 +169,63 @@ export async function GET(req: NextRequest) {
     const products = await queryCursor.toArray();
 
     // Map _id to id for consistency in frontend
-    const mappedProducts = products.map((p) => ({
+    let mappedProducts: any[] = products.map((p) => ({
       ...p,
       id: p.id || p._id.toString(),
     }));
+
+    // Fetch and map from respawnedCollection
+    const respawnedCollection = db!.collection("respawned");
+    let respawnedItems = await respawnedCollection.find({}).toArray();
+    
+    // Fallback to MOCK_RESPAWNED if DB is empty for demo
+    if (respawnedItems.length === 0) {
+      respawnedItems = MOCK_RESPAWNED;
+    }
+
+    const mappedRespawnedProducts = respawnedItems.map((r: any) => ({
+      id: r._id ? r._id.toString() : r.id,
+      name: r.name + " (Certified Refurbished)",
+      description: `RESPawn AI Certified item from ${r.type}. Fully inspected. ID: ${r.productbuyid || r.id}`,
+      price: r.price,
+      mrp: r.price * 1.5,
+      rating: 4.5,
+      ratingCount: 1,
+      category: "electronics",
+      image: r.image,
+      thumbnails: [r.image],
+      variations: [],
+      specs: { "Condition": "Refurbished", "Source": r.type },
+      whatInBox: ["Refurbished Item", "Inspection Report"],
+      isPrime: true,
+      isBestSeller: false,
+      isChoice: false,
+      stock: 1,
+      seller: "Respawn Certified Refurbished",
+      reviews: [],
+      qas: [],
+      respawn: {
+        isRespawned: true,
+        healthCardId: r.healthCardId,
+        grade: r.healthCardData?.grade || "A",
+        currentStage: r.currentStage,
+        status: r.status
+      }
+    }));
+
+    // Filter respawned items in memory based on query
+    let filteredRespawned = mappedRespawnedProducts;
+    if (q) {
+      const qLower = q.toLowerCase();
+      filteredRespawned = filteredRespawned.filter(p => p.name.toLowerCase().includes(qLower) || p.description.toLowerCase().includes(qLower));
+    }
+    // ...other filters can be applied similarly if needed
+
+    if (respawnOnly) {
+      mappedProducts = filteredRespawned;
+    } else {
+      mappedProducts = [...filteredRespawned, ...mappedProducts];
+    }
 
     return NextResponse.json({
       status: "success",

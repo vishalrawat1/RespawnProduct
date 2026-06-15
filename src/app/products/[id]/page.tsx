@@ -247,9 +247,9 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Health Card for Respawned Items */}
-          {product.respawn?.isRespawned && product.respawn.healthCardId && HEALTH_CARDS[product.respawn.healthCardId] && (
+          {product.respawn?.isRespawned && product.respawn.healthCardId && (
             <div style={{ marginBottom: "20px" }}>
-              <HealthCard productId={product.id} data={HEALTH_CARDS[product.respawn.healthCardId]} />
+              <HealthCard productId={product.id} healthCardId={product.respawn.healthCardId} />
             </div>
           )}
 

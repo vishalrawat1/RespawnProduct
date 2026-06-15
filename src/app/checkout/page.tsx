@@ -118,7 +118,8 @@ export default function CheckoutPage() {
             price: item.price,
             quantity: item.quantity,
             image: item.image,
-            variation: item.variation
+            variation: item.variation,
+            productbuyid: `pbid-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`
           })),
           totalAmount: finalTotal,
           shippingAddress: address,
