@@ -28,10 +28,25 @@ function SearchResultsContent() {
   const [onlyRespawn, setOnlyRespawn] = useState(false);
   const [sortOrder, setSortOrder] = useState("featured");
   const [visibleHealthCards, setVisibleHealthCards] = useState<Record<string, boolean>>({});
+  const [fetchedHealthCards, setFetchedHealthCards] = useState<Record<string, any>>({});
+  const [directHealthCard, setDirectHealthCard] = useState<any>(null);
 
-  const toggleHealthCard = (e: React.MouseEvent, productId: string) => {
+  const toggleHealthCard = async (e: React.MouseEvent, productId: string, healthCardId?: string) => {
     e.preventDefault();
-    setVisibleHealthCards(prev => ({ ...prev, [productId]: !prev[productId] }));
+    const isNowVisible = !visibleHealthCards[productId];
+    setVisibleHealthCards(prev => ({ ...prev, [productId]: isNowVisible }));
+
+    if (isNowVisible && healthCardId && !fetchedHealthCards[healthCardId]) {
+      try {
+        const res = await fetch(`/api/healthcards?id=${healthCardId}`);
+        const result = await res.json();
+        if (result.status === "success" && result.data && result.data.length > 0) {
+          setFetchedHealthCards(prev => ({ ...prev, [healthCardId]: result.data[0] }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch health card", err);
+      }
+    }
   };
 
   // Fetch products based on query and filters
@@ -56,6 +71,24 @@ function SearchResultsContent() {
             (p: any) => p.respawn?.status !== "accepted"
           );
           setProducts(availableProducts);
+        }
+        // Also check if the query is a productbuyid
+        const cleanQuery = q ? q.trim() : "";
+        if (cleanQuery.toLowerCase().startsWith("pbid-")) {
+          try {
+            const hcRes = await fetch(`/api/healthcards?productbuyid=${encodeURIComponent(cleanQuery)}`);
+            const hcData = await hcRes.json();
+            if (hcData.status === "success" && hcData.data && hcData.data.length > 0) {
+              setDirectHealthCard(hcData.data[0]);
+            } else {
+              setDirectHealthCard(null);
+            }
+          } catch (e) {
+            console.error(e);
+            setDirectHealthCard(null);
+          }
+        } else {
+          setDirectHealthCard(null);
         }
       } catch (err) {
         console.error("Failed to fetch products", err);
@@ -252,6 +285,16 @@ function SearchResultsContent() {
             </div>
           </div>
 
+          {/* Direct Health Card Result */}
+          {directHealthCard && (
+            <div style={{ marginBottom: "20px", padding: "15px", border: "1px solid #007185", borderRadius: "8px", backgroundColor: "#f2fdff" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "10px", color: "#007185", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Star size={18} /> Found RESPawn AI Health Card for ID: {q}
+              </h3>
+              <HealthCard productId={directHealthCard.productId || ""} data={directHealthCard} />
+            </div>
+          )}
+
           {/* Products Grid */}
           {loading ? (
             <div style={{ textAlign: "center", padding: "80px 0" }}>
@@ -321,15 +364,15 @@ function SearchResultsContent() {
                     {p.respawn?.isRespawned && (
                       <div style={{ padding: "0 15px 10px 15px" }}>
                         <button 
-                          onClick={(e) => toggleHealthCard(e, p.id)}
+                          onClick={(e) => toggleHealthCard(e, p.id, p.respawn?.healthCardId)}
                           style={{ width: "100%", padding: "6px", backgroundColor: "#f2fdff", border: "1px dashed #007185", color: "#007185", borderRadius: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: visibleHealthCards[p.id] ? "10px" : "0" }}
                         >
                           {visibleHealthCards[p.id] ? "Hide AI Health Card" : "View AI Health Card"}
                         </button>
                         {visibleHealthCards[p.id] && (
                           <HealthCard 
-                            productId={p.id} 
-                            data={p.respawn.healthCardId && HEALTH_CARDS[p.respawn.healthCardId] ? HEALTH_CARDS[p.respawn.healthCardId] : HEALTH_CARDS["hc-1"]} 
+                            productId={p.id}
+                            healthCardId={p.respawn?.healthCardId}
                           />
                         )}
                       </div>

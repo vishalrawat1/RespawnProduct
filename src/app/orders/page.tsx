@@ -35,6 +35,7 @@ interface OrderItem {
   quantity: number;
   image: string;
   variation?: string;
+  productbuyid?: string;
 }
 
 interface Order {
@@ -83,6 +84,7 @@ export default function OrdersPage() {
     productId: string; 
     itemName: string; 
     itemImage: string; 
+    productbuyid?: string;
   } | null>(null);
 
   const [respawnItem, setRespawnItem] = useState<{
@@ -91,6 +93,7 @@ export default function OrdersPage() {
     itemName: string;
     itemImage: string;
     price?: number;
+    productbuyid?: string;
   } | null>(null);
   
   const [returnReason, setReturnReason] = useState("");
@@ -334,7 +337,8 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: returnReason,
           comments: comments,
-          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : []
+          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : [],
+          productbuyid: returningItem?.productbuyid
         })
       });
 
@@ -398,6 +402,14 @@ export default function OrdersPage() {
     }
   };
 
+
+  // Helper: generate a unique RESPawn Session ID
+  const generateRespawnId = () => {
+    const ts = Date.now().toString(36).toUpperCase();
+    const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
+    return `RSP-${ts}-${rand}`;
+  };
+
   const runRespawnAIScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!respawnItem) return;
@@ -405,6 +417,9 @@ export default function OrdersPage() {
       alert("Please upload at least 3 photos for the AI Quality Inspector.");
       return;
     }
+
+    // ── Generate a unique ID for THIS respawn session ──────────────────
+    const respawnSessionId = generateRespawnId();
 
     setIsInspectingRespawn(true);
     setRespawnScanProgress(5);
@@ -436,7 +451,8 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: respawnReason,
           comments: respawnComments,
-          uploadedImages: respawnPhotos
+          uploadedImages: respawnPhotos,
+          productbuyid: respawnItem.productbuyid
         })
       });
 
@@ -446,38 +462,61 @@ export default function OrdersPage() {
       if (data.status === "success" && data.assessment) {
         setRespawnScanProgress(100);
         setRespawnScanMessage("Analysis complete.");
-        
-        // Sync locally
-        setReturnAssessments(prev => ({
-          ...prev,
-          [respawnItem.orderId]: data.assessment
-        }));
 
-        // Push HealthCard to backend
+        // ── Build the health card payload with the unique respawn ID ────
         const hcData = {
-          id: data.assessment.id,
-          grade: data.assessment.assignedGrade,
-          confidence: data.assessment.confidenceScore,
+          id:                   respawnSessionId,          // unique per scan
+          respawnSessionId:     respawnSessionId,
+          assessmentId:         data.assessment.id,        // original RET-xxx id
+          productId:            respawnItem.productId,
+          orderId:              respawnItem.orderId,
+          grade:                data.assessment.assignedGrade,
+          confidence:           data.assessment.confidenceScore,
           returns: [{ id: 1, reason: data.assessment.returnReason, count: 1 }],
-          routed: data.assessment.status === "Approved (Sent to Manufacturer)" ? "Manufacturer RMA" : "Secondary Market Resell",
-          manufacturerNote: data.assessment.historyInsights,
-          sustainability: "Eco-Verified Inspection",
-          generatedDate: new Date().toISOString().split("T")[0],
-          images: data.assessment.uploadedImages,
-          mismatchScore: data.assessment.analysisMetrics?.mismatchScore || 0,
-          crossVerifiedDefects: data.assessment.analysisMetrics?.crossVerifiedDefects || []
+          routed:               data.assessment.status === "Approved (Sent to Manufacturer)"
+                                  ? "Manufacturer RMA"
+                                  : "Secondary Market Resell",
+          manufacturerNote:     data.assessment.historyInsights,
+          sustainability:       "Eco-Verified Inspection",
+          generatedDate:        new Date().toISOString().split("T")[0],
+          generatedAt:          new Date().toISOString(),
+          images:               data.assessment.uploadedImages || [],
+          mismatchScore:        data.assessment.analysisMetrics?.mismatchScore || 0,
+          crossVerifiedDefects: data.assessment.analysisMetrics?.crossVerifiedDefects || [],
+          status:               data.assessment.status,
+          weightBreakdown:      data.assessment.weightBreakdown,
+          productbuyid:         respawnItem.productbuyid,
         };
 
+        // ── Persist health card to backend ──────────────────────────────
+        let confirmedHealthCardId = respawnSessionId;
         try {
-          await fetch("/api/healthcards", {
+          const hcRes = await fetch("/api/healthcards", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(hcData)
           });
+          const hcResult = await hcRes.json();
+          if (hcResult.status === "success" && hcResult.id) {
+            confirmedHealthCardId = hcResult.id;
+          }
+          console.log(`✅ Health Card saved: ${confirmedHealthCardId}`);
         } catch (hcErr) {
           console.error("Failed to push HealthCard to backend:", hcErr);
         }
-        
+
+        // ── Merge healthCardId + hcData into assessment so the UI has it ─
+        const enrichedAssessment = {
+          ...data.assessment,
+          healthCardId:   confirmedHealthCardId,
+          healthCardData: { ...hcData, id: confirmedHealthCardId },
+        };
+
+        setReturnAssessments(prev => ({
+          ...prev,
+          [respawnItem.orderId]: enrichedAssessment
+        }));
+
         setIsInspectingRespawn(false);
         setRespawnPhotos([]);
         setRespawnComments("");
@@ -1035,7 +1074,8 @@ export default function OrdersPage() {
                                               orderId: order.id, 
                                               productId: order.items[0].id,
                                               itemName: order.items[0].name, 
-                                              itemImage: order.items[0].image 
+                                              itemImage: order.items[0].image,
+                                              productbuyid: order.items[0].productbuyid
                                             })}
                                             style={{
                                               display: "inline-flex", alignItems: "center", gap: "5px",
@@ -1054,7 +1094,8 @@ export default function OrdersPage() {
                                               productId: order.items[0].id,
                                               itemName: order.items[0].name, 
                                               itemImage: order.items[0].image,
-                                              price: order.items[0].price
+                                              price: order.items[0].price,
+                                              productbuyid: order.items[0].productbuyid
                                             })}
                                             style={{
                                               display: "inline-flex", alignItems: "center", gap: "5px",
@@ -1750,6 +1791,14 @@ export default function OrdersPage() {
                           </div>
                         </div>
 
+                        {/* Unique Respawn Session ID badge */}
+                        {assessment.healthCardId && (
+                          <div style={{ marginTop: "10px", fontSize: "10px", color: "#556", backgroundColor: "#0f0f18", border: "1px solid #222233", borderRadius: "4px", padding: "5px 10px", fontFamily: "monospace", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ color: "#888" }}>RESPawn Health Card ID:</span>
+                            <span style={{ color: "#00f0ff", fontWeight: "700", letterSpacing: "0.5px" }}>{assessment.healthCardId}</span>
+                          </div>
+                        )}
+
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginTop: "10px" }}>
                           <button type="button" onClick={(e) => { e.preventDefault(); setShowHealthCard(!showHealthCard); }} style={{ color: "#00f0ff", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0 }}>• Health Card: {showHealthCard ? "Hide" : "View"}</button>
                           <a href="#full-inspect" onClick={(e) => { e.preventDefault(); alert(`Inspection Report: Mismatch Score: ${assessment.analysisMetrics.mismatchScore}%, Threshold: ${assessment.analysisMetrics.mismatchThreshold}%`); }} style={{ color: "#00f0ff", textDecoration: "underline" }}>• [View Full Inspection]</a>
@@ -1758,20 +1807,10 @@ export default function OrdersPage() {
                         {showHealthCard && (
                           <div style={{ marginTop: "15px", animation: "fadeIn 0.3s ease-in-out" }}>
                             <HealthCard 
-                              productId={respawnItem.productId} 
-                              data={{
-                                id: assessment.id,
-                                grade: assessment.assignedGrade,
-                                confidence: assessment.confidenceScore,
-                                returns: [{ id: 1, reason: assessment.returnReason, count: 1 }],
-                                routed: assessment.status === "Approved (Sent to Manufacturer)" ? "Manufacturer RMA" : "Secondary Market Resell",
-                                manufacturerNote: assessment.historyInsights,
-                                sustainability: "Eco-Verified Inspection",
-                                generatedDate: new Date().toISOString().split("T")[0],
-                                images: assessment.uploadedImages || [],
-                                mismatchScore: assessment.analysisMetrics?.mismatchScore || 0,
-                                crossVerifiedDefects: assessment.analysisMetrics?.crossVerifiedDefects || []
-                              }} 
+                              productId={respawnItem.productId}
+                              // Use the enriched healthCardData with the unique RSP-xxx ID
+                              data={assessment.healthCardData || undefined}
+                              healthCardId={assessment.healthCardId}
                             />
                           </div>
                         )}
@@ -2171,7 +2210,28 @@ export default function OrdersPage() {
                   boxShadow: agreedToTerms ? "0 0 12px rgba(0,240,255,0.4)" : "none",
                   fontSize: "13px"
                 }}
-                onClick={() => {
+                onClick={async () => {
+                  const assessment = returnAssessments[respawnItem.orderId];
+                  let updatedCardData = assessment?.healthCardData;
+
+                  if (updatedCardData) {
+                    updatedCardData = {
+                      ...updatedCardData,
+                      respawnOption: respawnOption
+                    };
+                    
+                    // Update DB with the chosen respawn option
+                    try {
+                      await fetch("/api/healthcards", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(updatedCardData)
+                      });
+                    } catch (e) {
+                      console.error("Failed to update health card with respawn option", e);
+                    }
+                  }
+
                   const dataToPass = {
                     item: {
                       id: respawnItem.productId,
@@ -2179,7 +2239,10 @@ export default function OrdersPage() {
                       image: respawnItem.itemImage,
                       price: respawnOption === "p2p" ? parseInt(expectedPrice) || 19500 : 
                              respawnOption === "lease" ? parseInt(rentalLeasePrice) || 300 : 
-                             19500
+                             19500,
+                      healthCardId: assessment?.healthCardId || undefined,
+                      healthCardData: updatedCardData || undefined,
+                      productbuyid: respawnItem.productbuyid || undefined,
                     },
                     type: respawnOption
                   };

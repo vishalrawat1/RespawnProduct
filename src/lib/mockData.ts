@@ -39,6 +39,8 @@ export interface HealthCardData {
   images?: string[];
   mismatchScore?: number;
   crossVerifiedDefects?: any[];
+  productbuyid?: string;
+  respawnOption?: string;
 }
 
 export interface RespawnData {

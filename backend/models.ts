@@ -25,6 +25,7 @@ export interface ReturnRequest {
   comments: string;
   uploadedImages: string[];
   isRespawn?: boolean;
+  productbuyid?: string;
 }
 
 export interface DimensionCheckResult {
@@ -71,6 +72,7 @@ export interface ReturnAssessment {
   historyInsights: string;
   status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected" | "Approved (Sent to Manufacturer)";
   createdAt: string;
+  productbuyid?: string;
 }
 
 export interface HealthCardReturnEntry {
@@ -92,6 +94,8 @@ export interface HealthCardData {
   blockchainHash?: string;
   images?: string[];
   mismatchScore?: number;
+  productbuyid?: string;
+  respawnOption?: string;
 }
 
 export interface RespawnData {
@@ -100,4 +104,20 @@ export interface RespawnData {
   grade?: string;
   currentStage?: number;
   status?: string;
+  productbuyid?: string;
+}
+
+export interface RespawnedItem {
+  id: string; // Internal ID
+  productId: string; // The original product ID
+  productbuyid: string; // The unique buy ID
+  name: string;
+  image: string;
+  price: number;
+  type: string; // e.g. "p2p", "refurb", etc.
+  currentStage: number;
+  status: string;
+  healthCardId?: string;
+  healthCardData?: any; // To hold the embedded HealthCard
+  createdAt: string;
 }

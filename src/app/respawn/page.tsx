@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ShieldCheck, Package, XCircle } from "lucide-react";
 import HealthCard from "@/components/HealthCard";
-import { HEALTH_CARDS } from "@/lib/mockData";
+
 
 interface TrackedItem {
   id: string;
@@ -13,6 +13,9 @@ interface TrackedItem {
   image: string;
   price: number;
   respawn?: any;
+  healthCardId?: string;
+  healthCardData?: any;
+  productbuyid?: string;
 }
 
 interface RespawnData {
@@ -139,7 +142,7 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
       // Create new listing
       try {
         const payload = { ...data, currentStage: newStage, status: newStatus };
-        const res = await fetch("/api/products/respawn", {
+        const res = await fetch("/api/respawned", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -154,10 +157,10 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
     } else {
       // Update existing listing state
       try {
-        await fetch("/api/products/respawn", {
+        await fetch("/api/respawned", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: publishedProductId, currentStage: newStage, status: newStatus })
+          body: JSON.stringify({ id: publishedProductId, currentStage: newStage, status: newStatus })
         });
       } catch (err) {
         console.error("Failed to update tracking state on backend", err);
@@ -183,10 +186,10 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
 
     if (publishedProductId) {
       try {
-        await fetch("/api/products/respawn", {
+        await fetch("/api/respawned", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: publishedProductId, currentStage, status: "matched" })
+          body: JSON.stringify({ id: publishedProductId, currentStage, status: "matched" })
         });
       } catch (err) {
         console.error("Failed to update backend", err);
@@ -199,24 +202,24 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
     if (!publishedProductId) {
       try {
         const payload = { ...data, currentStage, status: "accepted" };
-        const res = await fetch("/api/products/respawn", {
+        const res = await fetch("/api/respawned", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const result = await res.json();
         if (result.status === "success") {
-          setPublishedProductId(result.productId);
+          setPublishedProductId(result.id);
         }
       } catch (err) {
         console.error("Failed to save respawn product", err);
       }
     } else {
       try {
-        await fetch("/api/products/respawn", {
+        await fetch("/api/respawned", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: publishedProductId, currentStage, status: "accepted" })
+          body: JSON.stringify({ id: publishedProductId, currentStage, status: "accepted" })
         });
       } catch (err) {
         console.error("Failed to update backend", err);
@@ -245,6 +248,12 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "#565959" }}>RESPAWN ID #</div>
             <div>{data.item.id.replace("respawn-", "").substring(0, 10).toUpperCase() || `RES-${Math.floor(Math.random() * 10000)}`}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "#565959" }}>PRODUCT BUY ID</div>
+            <div style={{ fontFamily: "monospace", color: "#b06000", fontWeight: "700" }}>
+              {data.item.productbuyid || data.item.healthCardData?.productbuyid || "N/A"}
+            </div>
           </div>
         </div>
 
@@ -275,10 +284,9 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
             {/* Health Card display */}
             <div style={{ width: "350px", maxWidth: "100%" }}>
               <HealthCard 
-                productId={data.item.id} 
-                data={data.item.respawn?.healthCardId && HEALTH_CARDS[data.item.respawn.healthCardId] 
-                        ? HEALTH_CARDS[data.item.respawn.healthCardId] 
-                        : HEALTH_CARDS["hc-1"]} 
+                productId={data.item.id}
+                data={(data.item as any).healthCardData || undefined}
+                healthCardId={(data.item as any).healthCardId || data.item.respawn?.healthCardId}
               />
             </div>
           </div>
@@ -471,21 +479,31 @@ export default function RespawnTracker() {
     async function fetchDashboard() {
       const activeList: RespawnData[] = [];
       
-      // 1. Fetch from API (items already in marketplace)
+      // 1. Fetch from new respawned API
       try {
-        const res = await fetch("/api/products?respawnOnly=true");
+        const res = await fetch("/api/respawned");
         if (res.ok) {
           const fetchedData = await res.json();
-          const products = fetchedData.products || [];
+          const respawnedItems = fetchedData.data || [];
           
-          products.forEach((p: any) => {
-            // Only show items that are still in stock! (If someone bought it, remove from routing list)
-            if (p.stock > 0) {
-              activeList.push({
-                item: { id: p.id, name: p.name, image: p.image, price: p.price, respawn: p.respawn },
-                type: p.respawn?.routed === "P2P RESALE" ? "p2p" : "refurb"
-              });
-            }
+          respawnedItems.forEach((p: any) => {
+            activeList.push({
+              item: { 
+                id: p.productId, 
+                name: p.name, 
+                image: p.image, 
+                price: p.price, 
+                respawn: {
+                  currentStage: p.currentStage,
+                  status: p.status,
+                  healthCardId: p.healthCardId
+                },
+                healthCardId: p.healthCardId,
+                healthCardData: p.healthCardData,
+                productbuyid: p.productbuyid
+              },
+              type: p.type
+            });
           });
         }
       } catch (err) {
@@ -515,7 +533,14 @@ export default function RespawnTracker() {
       // If activeList is completely empty, provide fallback data for the hackathon demo
       if (activeList.length === 0) {
         activeList.push({
-          item: { id: "sony-wh-1000xm5", name: "Sony WH-1000XM5 Wireless Headphones", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80", price: 29990 },
+          item: { 
+            id: "sony-wh-1000xm5", 
+            name: "Sony WH-1000XM5 Wireless Headphones", 
+            image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80", 
+            price: 29990,
+            productbuyid: "pbid-mock-001",
+            healthCardId: "hc-mock-001"
+          },
           type: "p2p"
         });
       }

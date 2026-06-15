@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
-import { PRODUCTS, HEALTH_CARDS, Product } from "@/lib/mockData";
+import { PRODUCTS, Product } from "@/lib/mockData";
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,17 +8,19 @@ export async function POST(req: NextRequest) {
     const { item, type } = data; // from RespawnTracker state
 
     const newProductId = `respawn-${item.id}-${Date.now()}`;
-    const healthCardId = `hc-${newProductId}`;
+    // Use the real AI assessment ID if passed (e.g. "RET-NN3NJUDJ3")
+    // This must match what was saved in /api/healthcards
+    const healthCardId = item.healthCardId || newProductId;
 
     const newProduct: Product = {
       id: newProductId,
       name: `${item.name} - Certified Refurbished`,
       description: `RESPawn AI Certified item from a ${type === "p2p" ? "local peer transfer" : "manufacturer refurbishment"}. Fully inspected.`,
-      price: item.price, // Use exactly the price from AI scanning
-      mrp: item.price > 1000 ? 29990 : item.price * 10, // Approximate MRP based on whether it's resale or lease
+      price: item.price,
+      mrp: item.price > 1000 ? 29990 : item.price * 10,
       rating: 4.5,
       ratingCount: 1,
-      category: "electronics", // default
+      category: "electronics",
       image: item.image,
       thumbnails: [item.image],
       variations: [],
@@ -33,41 +35,23 @@ export async function POST(req: NextRequest) {
       qas: [],
       respawn: {
         isRespawned: true,
-        healthCardId: healthCardId,
+        healthCardId: healthCardId,  // real AI assessment ID
         grade: "A",
         currentStage: data.currentStage || 1,
         status: data.status || "routing"
       }
     };
 
-    const newHealthCard = {
-      grade: "A",
-      confidence: 95,
-      returns: [],
-      routed: type === "p2p" ? "P2P RESALE" : "REFURBISH",
-      manufacturerNote: "Item perfectly functional, inspected via visual AI and logistics tracking.",
-      sustainability: "1.2kg e-waste saved",
-      generatedDate: new Date().toISOString().split("T")[0],
-      blockchainHash: `0x${Math.random().toString(16).slice(2)}...`
-    };
-
     const { db, isMock } = await connectToDatabase();
 
     if (isMock) {
       PRODUCTS.push(newProduct);
-      HEALTH_CARDS[healthCardId] = newHealthCard;
     } else {
-      // In MongoDB mode
       const productsCollection = db!.collection("products");
-      const healthCardsCollection = db!.collection("healthCards"); // if we have it, else just save in product
-
       await productsCollection.insertOne({
         ...newProduct,
         _id: newProductId as any
       });
-      
-      // also just mock health card by adding it to memory map for simplicity in hybrid since the Verify page fetches from HEALTH_CARDS directly
-      HEALTH_CARDS[healthCardId] = newHealthCard;
     }
 
     return NextResponse.json({
