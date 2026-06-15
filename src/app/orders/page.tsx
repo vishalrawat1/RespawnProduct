@@ -93,6 +93,10 @@ export default function OrdersPage() {
   
   const [returnReason, setReturnReason] = useState("");
   const [comments, setComments] = useState("");
+  const [returnActionType, setReturnActionType] = useState<"return" | "exchange">("return");
+  const [exchangeDetails, setExchangeDetails] = useState("");
+  const [useNewAddress, setUseNewAddress] = useState(false);
+  const [exchangeAddress, setExchangeAddress] = useState("");
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -126,6 +130,7 @@ export default function OrdersPage() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelComment, setCancelComment] = useState("");
+  const [simulatedDays, setSimulatedDays] = useState<number>(1);
 
   useEffect(() => {
     async function fetchOrdersAndReturns() {
@@ -331,7 +336,8 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: returnReason,
           comments: comments,
-          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : []
+          uploadedImages: selectedPhotos.length > 0 ? selectedPhotos : [],
+          daysSinceDelivery: simulatedDays
         })
       });
 
@@ -378,6 +384,10 @@ export default function OrdersPage() {
     setSelectedPhotos([]);
     setWizardStep("intake");
     setAssessmentResult(null);
+    setReturnActionType("return");
+    setExchangeDetails("");
+    setUseNewAddress(false);
+    setExchangeAddress("");
   };
 
   const handleRespawnPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,7 +443,8 @@ export default function OrdersPage() {
           userId: user.id,
           returnReason: respawnReason,
           comments: respawnComments,
-          uploadedImages: respawnPhotos
+          uploadedImages: respawnPhotos,
+          daysSinceDelivery: simulatedDays
         })
       });
 
@@ -606,6 +617,10 @@ export default function OrdersPage() {
                         </span>
                         <span style={{ fontSize: "12px", color: "#555" }}>
                           Status: <strong style={{ color: returnAssessments[order.id].status === "Approved (Auto-Refund)" ? "green" : "#b06000" }}>{returnAssessments[order.id].status}</strong>
+                        </span>
+                        <span style={{ fontSize: "12px", color: "#555", borderLeft: "1px solid #ccc", paddingLeft: "10px" }}>
+                          Returned on: <strong>{new Date(returnAssessments[order.id].createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong> 
+                          {" "}({returnAssessments[order.id].daysSinceDelivery ?? 0} days after delivery)
                         </span>
                         <button 
                           onClick={() => {
@@ -1093,9 +1108,94 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
+                {/* Return vs Exchange Choice */}
+                <div>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px" }}>What would you like to do?</label>
+                  <div style={{ display: "flex", gap: "15px", marginBottom: "15px" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", cursor: "pointer" }}>
+                      <input 
+                        type="radio" 
+                        name="returnActionType" 
+                        value="return" 
+                        checked={returnActionType === "return"} 
+                        onChange={() => setReturnActionType("return")} 
+                      />
+                      Return Item
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", cursor: "pointer" }}>
+                      <input 
+                        type="radio" 
+                        name="returnActionType" 
+                        value="exchange" 
+                        checked={returnActionType === "exchange"} 
+                        onChange={() => setReturnActionType("exchange")} 
+                      />
+                      Exchange Item
+                    </label>
+                  </div>
+                </div>
+
+                {/* Exchange specific dropdown */}
+                {returnActionType === "exchange" && (
+                  <div>
+                    <label htmlFor="exchangeSelect" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px" }}>
+                      Select exchange option ({returningItem?.itemName.match(/phone|laptop|earbuds|headphones|tv|watch|electronics/i) ? "Storage/Color" : "Size/Color"}):
+                    </label>
+                    <select 
+                      id="exchangeSelect"
+                      value={exchangeDetails} 
+                      onChange={(e) => setExchangeDetails(e.target.value)}
+                      style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", marginBottom: "15px" }}
+                      required={returnActionType === "exchange"}
+                    >
+                      <option value="">Choose an option...</option>
+                      {returningItem?.itemName.match(/phone|laptop|earbuds|headphones|tv|watch|electronics/i) ? (
+                        <>
+                          <option value="storage_128">Storage: 128GB</option>
+                          <option value="storage_256">Storage: 256GB</option>
+                          <option value="color_black">Color: Black</option>
+                          <option value="color_silver">Color: Silver</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="size_s">Size: S</option>
+                          <option value="size_m">Size: M</option>
+                          <option value="size_l">Size: L</option>
+                          <option value="color_black">Color: Black</option>
+                          <option value="color_white">Color: White</option>
+                        </>
+                      )}
+                    </select>
+
+                    {/* Different Address Option */}
+                    <div style={{ marginBottom: "15px", padding: "10px", border: "1px solid #eee", borderRadius: "6px", backgroundColor: "#fff" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "600", cursor: "pointer", marginBottom: useNewAddress ? "10px" : "0" }}>
+                        <input 
+                          type="checkbox" 
+                          checked={useNewAddress} 
+                          onChange={(e) => setUseNewAddress(e.target.checked)} 
+                        />
+                        Deliver exchange to a different address?
+                      </label>
+                      {useNewAddress && (
+                        <textarea 
+                          placeholder="Enter new delivery address (Street, City, Pincode)" 
+                          value={exchangeAddress}
+                          onChange={(e) => setExchangeAddress(e.target.value)}
+                          rows={2}
+                          style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc", fontSize: "13px", fontFamily: "inherit" }}
+                          required={useNewAddress}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Reason Select */}
                 <div>
-                  <label htmlFor="reasonSelect" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px" }}>Select return reason:</label>
+                  <label htmlFor="reasonSelect" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px" }}>
+                    {returnActionType === "exchange" ? "Select reason for exchange:" : "Select return reason:"}
+                  </label>
                   <select 
                     id="reasonSelect"
                     value={returnReason} 
@@ -1197,8 +1297,40 @@ export default function OrdersPage() {
                     placeholder="Describe any specific issues (e.g. tag status, scratches, dimension defects, color differences)" 
                     value={comments} 
                     onChange={(e) => setComments(e.target.value)}
-                    style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", fontFamily: "inherit" }}
+                    style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", fontFamily: "inherit", marginBottom: "15px" }}
                   />
+                </div>
+
+                {/* Days Since Delivery Selector */}
+                <div style={{ marginBottom: "20px" }}>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "8px" }}>How many days after delivery are you returning? (max 7)</label>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => setSimulatedDays(day)}
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          borderRadius: "8px",
+                          border: simulatedDays === day ? "2px solid #FF9900" : "2px solid #ddd",
+                          backgroundColor: simulatedDays === day ? "#FFF3E0" : "#fff",
+                          color: simulatedDays === day ? "#E47911" : "#333",
+                          fontSize: "16px",
+                          fontWeight: simulatedDays === day ? "800" : "600",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          boxShadow: simulatedDays === day ? "0 2px 8px rgba(255,153,0,0.3)" : "none"
+                        }}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: "11px", color: "#666", marginTop: "6px", display: "block" }}>
+                    Selected: <strong>Day {simulatedDays}</strong> after delivery
+                  </span>
                 </div>
 
                 {/* Submit button */}
@@ -1336,6 +1468,12 @@ export default function OrdersPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Delivery and Return Context */}
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", padding: "10px", backgroundColor: "#f6f9fc", borderRadius: "4px", marginBottom: "15px", border: "1px solid #e2e8f0" }}>
+                  <span>Return Logged After: <strong>{assessmentResult.daysSinceDelivery ?? 0} days</strong></span>
+                  <span>Inspection Strategy: <strong>{(assessmentResult.daysSinceDelivery ?? 0) <= 1 ? "Focused Check (Returned quickly)" : "Strict Check (Standard)"}</strong></span>
+                </div>
 
                 {/* Adaptive weights breakdown */}
                 <div>

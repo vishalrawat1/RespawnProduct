@@ -7,7 +7,7 @@ import { MOCK_ORDERS } from "../../orders/route";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { orderId, productId, userId, returnReason, comments, uploadedImages, isRespawn } = body;
+    const { orderId, productId, userId, returnReason, comments, uploadedImages, isRespawn, daysSinceDelivery } = body;
 
     if (!orderId || !productId || !userId || !returnReason) {
       return NextResponse.json(
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
       returnReason,
       comments: comments || "",
       uploadedImages: uploadedImages || [],
-      isRespawn: !!isRespawn
+      isRespawn: !!isRespawn,
+      daysSinceDelivery
     });
 
     // Simulate the exact processing time calculated by the AI engine

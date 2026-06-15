@@ -32,7 +32,7 @@ class ProductInspectionAI:
             return pil_img, cv_img
         return pil_img, None
 
-    def compare_images(self, ref_path, user_path, angle_name=""):
+    def compare_images(self, ref_path, user_path, angle_name="", return_reason="", days_since_delivery=3):
         """Compares a manufacturer reference image against a user return image."""
         print(f"Comparing Reference vs User for: {angle_name}")
         
@@ -84,7 +84,19 @@ class ProductInspectionAI:
             })
 
         # Calculate localized mismatch score for this pair
-        base_mismatch = (100 - match_score) * 0.4 + (color_diff / 180.0) * 40.0 + (edge_diff * 100) * 2.0
+        if days_since_delivery <= 1:
+            if return_reason == "color_difference":
+                base_mismatch = (color_diff / 180.0) * 100.0 # purely color focused
+            elif return_reason in ["defective_damaged", "quality_issue"]:
+                base_mismatch = (100 - match_score) * 0.5 + (edge_diff * 100) * 3.0 # purely structural/damage focused
+            elif return_reason == "size_issue":
+                base_mismatch = 0.0 # strictly size-based, disregard general image deviations
+            else:
+                base_mismatch = (100 - match_score) * 0.2 + (color_diff / 180.0) * 20.0 + (edge_diff * 100) * 1.0
+        else:
+            # Over 1 day: check everything strictly to ensure no wear and tear
+            base_mismatch = (100 - match_score) * 0.4 + (color_diff / 180.0) * 40.0 + (edge_diff * 100) * 2.0
+            
         mismatch_score = min(max(base_mismatch, 0.0), 100.0)
 
         return {
@@ -198,24 +210,52 @@ class ProductInspectionAI:
         ref_images = data.get("manufacturer_reference_images", {})
         user_images = data.get("user_return_images", {})
         prod_info = data.get("product_info", {})
+        comments = str(prod_info.get("comments", "")).lower()
+        days_since_delivery = int(prod_info.get("days_since_delivery", 3))
+        return_reason = prod_info.get("return_reason", "None")
 
         print(f"Initiating AI inspection for {prod_info.get('brand_model', 'Unknown Product')}")
-        print(f"Return Reason: {prod_info.get('return_reason', 'None')}")
+        print(f"Return Reason: {return_reason}, Days Since Delivery: {days_since_delivery}")
+
+        # Tag Check
+        if "tag" in comments and ("cut" in comments or "missing" in comments or "no " in comments or "without" in comments):
+            return {
+                "product_info": prod_info,
+                "overall_mismatch_score": 100.0,
+                "mismatch_threshold": self.mismatch_threshold,
+                "status": "Rejected",
+                "human_check_required": False,
+                "simulated_human_verification": None,
+                "remarks": "Return rejected. Mandatory product tag is missing or cut.",
+                "cross_verified_defects": [{"type": "tag_missing", "occurrences": [], "is_cross_verified": True, "final_severity": "high"}],
+                "per_angle_results": []
+            }
+
+        # Dynamic Thresholding
+        if days_since_delivery > 1:
+            self.mismatch_threshold = 10.0 # Strict
+        else:
+            if return_reason == "color_difference":
+                self.mismatch_threshold = 25.0 # Casual overall, but color is weighted heavily in compare_images
+            elif return_reason in ["defective_damaged", "quality_issue"]:
+                self.mismatch_threshold = 10.0 # Strict
+            else:
+                self.mismatch_threshold = 25.0 # Casual
 
         results = []
         # Compare front view
         if "front_view" in ref_images and "user_front" in user_images:
-            res = self.compare_images(ref_images["front_view"], user_images["user_front"], "front_view")
+            res = self.compare_images(ref_images["front_view"], user_images["user_front"], "front_view", return_reason, days_since_delivery)
             results.append(res)
 
         # Compare back view
         if "back_view" in ref_images and "user_back" in user_images:
-            res = self.compare_images(ref_images["back_view"], user_images["user_back"], "back_view")
+            res = self.compare_images(ref_images["back_view"], user_images["user_back"], "back_view", return_reason, days_since_delivery)
             results.append(res)
 
         # Compare detail view
         if "detail_view" in ref_images and "user_detail" in user_images:
-            res = self.compare_images(ref_images["detail_view"], user_images["user_detail"], "detail_view")
+            res = self.compare_images(ref_images["detail_view"], user_images["user_detail"], "detail_view", return_reason, days_since_delivery)
             results.append(res)
 
         # Handle additional angles if any
@@ -224,7 +264,7 @@ class ProductInspectionAI:
             # Compare additional angles with detail view as fallback reference
             ref_path = ref_images.get("detail_view") or ref_images.get("front_view")
             if ref_path:
-                res = self.compare_images(ref_path, add_path, f"additional_angle_{idx + 1}")
+                res = self.compare_images(ref_path, add_path, f"additional_angle_{idx + 1}", return_reason, days_since_delivery)
                 results.append(res)
 
         if not results:

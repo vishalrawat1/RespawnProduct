@@ -25,6 +25,7 @@ export interface ReturnRequest {
   comments: string;
   uploadedImages: string[];
   isRespawn?: boolean;
+  daysSinceDelivery?: number;
 }
 
 export interface DimensionCheckResult {
@@ -70,4 +71,5 @@ export interface ReturnAssessment {
   historyInsights: string;
   status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected" | "Approved (Sent to Manufacturer)";
   createdAt: string;
+  daysSinceDelivery?: number;
 }

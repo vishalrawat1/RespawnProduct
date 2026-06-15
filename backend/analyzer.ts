@@ -168,7 +168,8 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
       category: "audio",
       brand_model: request.productId,
       return_reason: request.returnReason,
-      days_since_delivery: 3
+      comments: request.comments,
+      days_since_delivery: request.daysSinceDelivery ?? 3
     }
   };
 
@@ -241,13 +242,18 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
     weightBreakdown = { imageMatching: 0.7, generalCondition: 0.3 };
     finalScore = (similarityScore * 0.7) + (generalCondition * 0.3);
 
-    if (mismatchScore > THRESHOLD) {
+    const resellRoutingInfo = `Product routed to nearest store (Search radius: City → State → Country) for quality verification. The system is actively searching for the nearest buyer to fulfill resale immediately.`;
+
+    if (request.daysSinceDelivery != null && request.daysSinceDelivery <= 1) {
+      status = "Approved (Auto-Refund)";
+      historyInsights = `Return requested within 1 day. Fast-track AI analysis performed. ${resellRoutingInfo} Approved for Auto-Refund.`;
+    } else if (mismatchScore > THRESHOLD) {
       status = "Flagged (Manual Review)";
       const defectsStr = metrics.damageDetails ? ` (Defects: ${metrics.damageDetails})` : "";
-      historyInsights = `AI Image matching detected a ${mismatchScore}% dissimilarity against the factory pre-shipment reference image, which exceeds the threshold of ${THRESHOLD}%${defectsStr}. A human agent check (Manual Review) is required to verify return eligibility.`;
+      historyInsights = `AI Image matching detected a ${mismatchScore}% dissimilarity${defectsStr}. ${resellRoutingInfo} A human store agent check is required to verify condition before resale.`;
     } else {
       status = "Approved (Auto-Refund)";
-      historyInsights = `AI Image matching confirmed the product matches the factory pre-shipment reference image with a dissimilarity of ${mismatchScore}% (Threshold: ${THRESHOLD}%). Approved for Auto-Refund.`;
+      historyInsights = `AI Image matching confirmed product matches factory condition (Deviation: ${mismatchScore}%). ${resellRoutingInfo} Approved for Auto-Refund.`;
     }
   }
 
@@ -278,6 +284,7 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
     analysisMetrics: metrics,
     historyInsights,
     status,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    daysSinceDelivery: request.daysSinceDelivery ?? 3
   };
 }
