@@ -13,7 +13,8 @@ export const MOCK_ORDERS: any[] = [
         price: 4499,
         quantity: 1,
         image: "https://images.unsplash.com/photo-1543069027-d73630640aa3?w=500&auto=format&fit=crop&q=80",
-        variation: "Color: Black"
+        variation: "Color: Black",
+        productbuyid: "pbid-mock-001"
       }
     ],
     totalAmount: 4499,
@@ -95,10 +96,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ordersCollection = db!.collection("orders");
-    await ordersCollection.insertOne({
-      ...newOrder,
-      _id: undefined // Let MongoDB auto-generate ObjectId
-    });
+    await ordersCollection.insertOne(newOrder);
 
     return NextResponse.json({ status: "success", source: "mongodb", order: newOrder });
   } catch (error: any) {

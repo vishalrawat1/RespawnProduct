@@ -118,7 +118,8 @@ export default function CheckoutPage() {
             price: item.price,
             quantity: item.quantity,
             image: item.image,
-            variation: item.variation
+            variation: item.variation,
+            productbuyid: `pbid-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`
           })),
           totalAmount: finalTotal,
           shippingAddress: address,
@@ -128,6 +129,21 @@ export default function CheckoutPage() {
       });
       const data = await res.json();
       if (data.status === "success") {
+        // Intercept: Notify Seller Dashboard for Respawn Items
+        for (const item of cart) {
+          if (item.isRespawned || item.id.startsWith("respawn-")) {
+            try {
+              await fetch("/api/products/respawn", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: item.id, status: "matched" })
+              });
+            } catch (e) {
+              console.error("Failed to notify seller dashboard", e);
+            }
+          }
+        }
+
         setPlacedOrderDetails(data.order);
         clearCart();
       } else {
@@ -320,7 +336,12 @@ export default function CheckoutPage() {
               {cart.map((item, idx) => (
                 <div key={idx} style={{ display: "flex", gap: "10px", padding: "8px 0", borderBottom: idx < cart.length - 1 ? "1px solid #eee" : "none", fontSize: "13px" }}>
                   <div style={{ width: "40px", height: "40px", backgroundImage: `url(${item.image})`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}></div>
-                  <div style={{ flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                  <div style={{ flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.name}
+                    {item.isRespawned && (
+                      <span style={{ display: "inline-block", backgroundColor: "#007185", color: "#fff", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: "700", marginLeft: "6px", verticalAlign: "middle" }}>RESPAWN</span>
+                    )}
+                  </div>
                   <div style={{ fontWeight: "700" }}>₹{item.price.toLocaleString("en-IN")} x {item.quantity}</div>
                 </div>
               ))}

@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useApp } from "@/lib/AppContext";
 import { Product } from "@/lib/mockData";
 import { Star, ShieldAlert } from "lucide-react";
+import HealthCard from "@/components/HealthCard";
+import { HEALTH_CARDS } from "@/lib/mockData";
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
@@ -23,7 +25,29 @@ function SearchResultsContent() {
   const [selectedRating, setSelectedRating] = useState<number>(0);
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [onlyPrime, setOnlyPrime] = useState(false);
+  const [onlyRespawn, setOnlyRespawn] = useState(false);
   const [sortOrder, setSortOrder] = useState("featured");
+  const [visibleHealthCards, setVisibleHealthCards] = useState<Record<string, boolean>>({});
+  const [fetchedHealthCards, setFetchedHealthCards] = useState<Record<string, any>>({});
+  const [directHealthCard, setDirectHealthCard] = useState<any>(null);
+
+  const toggleHealthCard = async (e: React.MouseEvent, productId: string, healthCardId?: string) => {
+    e.preventDefault();
+    const isNowVisible = !visibleHealthCards[productId];
+    setVisibleHealthCards(prev => ({ ...prev, [productId]: isNowVisible }));
+
+    if (isNowVisible && healthCardId && !fetchedHealthCards[healthCardId]) {
+      try {
+        const res = await fetch(`/api/healthcards?id=${healthCardId}`);
+        const result = await res.json();
+        if (result.status === "success" && result.data && result.data.length > 0) {
+          setFetchedHealthCards(prev => ({ ...prev, [healthCardId]: result.data[0] }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch health card", err);
+      }
+    }
+  };
 
   // Fetch products based on query and filters
   useEffect(() => {
@@ -37,12 +61,34 @@ function SearchResultsContent() {
         if (priceRange.min) url += `&priceMin=${priceRange.min}`;
         if (priceRange.max) url += `&priceMax=${priceRange.max}`;
         if (onlyPrime) url += `&prime=true`;
+        if (onlyRespawn) url += `&respawnOnly=true`;
         url += `&sort=${sortOrder}`;
 
         const res = await fetch(url);
         const data = await res.json();
         if (data.status === "success") {
-          setProducts(data.products || []);
+          const availableProducts = (data.products || []).filter(
+            (p: any) => p.respawn?.status !== "accepted"
+          );
+          setProducts(availableProducts);
+        }
+        // Also check if the query is a productbuyid
+        const cleanQuery = q ? q.trim() : "";
+        if (cleanQuery.toLowerCase().startsWith("pbid-")) {
+          try {
+            const hcRes = await fetch(`/api/healthcards?productbuyid=${encodeURIComponent(cleanQuery)}`);
+            const hcData = await hcRes.json();
+            if (hcData.status === "success" && hcData.data && hcData.data.length > 0) {
+              setDirectHealthCard(hcData.data[0]);
+            } else {
+              setDirectHealthCard(null);
+            }
+          } catch (e) {
+            console.error(e);
+            setDirectHealthCard(null);
+          }
+        } else {
+          setDirectHealthCard(null);
         }
       } catch (err) {
         console.error("Failed to fetch products", err);
@@ -51,7 +97,7 @@ function SearchResultsContent() {
       }
     }
     fetchFilteredProducts();
-  }, [q, categoryParam, selectedBrand, selectedRating, priceRange.min, priceRange.max, onlyPrime, sortOrder]);
+  }, [q, categoryParam, selectedBrand, selectedRating, priceRange.min, priceRange.max, onlyPrime, onlyRespawn, sortOrder]);
 
   const handlePriceApply = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +137,7 @@ function SearchResultsContent() {
     setSelectedRating(0);
     setPriceRange({ min: "", max: "" });
     setOnlyPrime(false);
+    setOnlyRespawn(false);
     setSortOrder("featured");
   };
 
@@ -122,6 +169,24 @@ function SearchResultsContent() {
                 />
                 <label htmlFor="primeCheck" style={{ fontSize: "13px", display: "flex", alignItems: "center", cursor: "pointer" }}>
                   <span className="prime-badge" style={{ marginLeft: "4px" }}>Prime</span> Eligible
+                </label>
+              </li>
+            </ul>
+          </div>
+
+          {/* Respawn Filter */}
+          <div className="filter-section">
+            <h4>Item Condition</h4>
+            <ul>
+              <li>
+                <input 
+                  type="checkbox" 
+                  id="respawnCheck" 
+                  checked={onlyRespawn}
+                  onChange={(e) => setOnlyRespawn(e.target.checked)}
+                />
+                <label htmlFor="respawnCheck" style={{ fontSize: "13px", display: "flex", alignItems: "center", cursor: "pointer", marginLeft: "6px" }}>
+                  Show only <span className="respawn-tag" style={{ marginLeft: "4px" }}>RESPAWN</span>
                 </label>
               </li>
             </ul>
@@ -215,9 +280,20 @@ function SearchResultsContent() {
                 <option value="price-desc">Price: High to Low</option>
                 <option value="rating-desc">Avg. Customer Review</option>
                 <option value="newest">Newest Arrivals</option>
+                <option value="best-health">Best Health Score</option>
               </select>
             </div>
           </div>
+
+          {/* Direct Health Card Result */}
+          {directHealthCard && (
+            <div style={{ marginBottom: "20px", padding: "15px", border: "1px solid #007185", borderRadius: "8px", backgroundColor: "#f2fdff" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", marginBottom: "10px", color: "#007185", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Star size={18} /> Found RESPawn AI Health Card for ID: {q}
+              </h3>
+              <HealthCard productId={directHealthCard.productId || ""} data={directHealthCard} />
+            </div>
+          )}
 
           {/* Products Grid */}
           {loading ? (
@@ -247,7 +323,10 @@ function SearchResultsContent() {
                     {!isSponsored && p.isBestSeller && <span className="product-card-badge" style={{ backgroundColor: "#e47911" }}>Best Seller</span>}
                     {!isSponsored && !p.isBestSeller && p.isChoice && <span className="product-card-badge" style={{ backgroundColor: "#232f3e" }}>Amazon's Choice</span>}
 
-                    <Link href={`/products/${p.id}`}>
+                    <Link href={`/products/${p.id}`} style={{ position: "relative", display: "block" }}>
+                      {p.respawn?.isRespawned && (
+                        <span style={{ position: "absolute", top: "5px", left: "5px", zIndex: 10 }} className="respawn-tag">RESPAWN</span>
+                      )}
                       <div 
                         className="product-card-img" 
                         style={{ backgroundImage: `url(${p.image})` }}
@@ -281,6 +360,23 @@ function SearchResultsContent() {
                         FREE Delivery by Respawn
                       </div>
                     </div>
+
+                    {p.respawn?.isRespawned && (
+                      <div style={{ padding: "0 15px 10px 15px" }}>
+                        <button 
+                          onClick={(e) => toggleHealthCard(e, p.id, p.respawn?.healthCardId)}
+                          style={{ width: "100%", padding: "6px", backgroundColor: "#f2fdff", border: "1px dashed #007185", color: "#007185", borderRadius: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: visibleHealthCards[p.id] ? "10px" : "0" }}
+                        >
+                          {visibleHealthCards[p.id] ? "Hide AI Health Card" : "View AI Health Card"}
+                        </button>
+                        {visibleHealthCards[p.id] && (
+                          <HealthCard 
+                            productId={p.id}
+                            healthCardId={p.respawn?.healthCardId}
+                          />
+                        )}
+                      </div>
+                    )}
 
                     {/* Quick CTAs */}
                     <div className="card-actions">

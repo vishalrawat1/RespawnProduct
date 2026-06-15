@@ -26,6 +26,7 @@ export interface ReturnRequest {
   uploadedImages: string[];
   isRespawn?: boolean;
   daysSinceDelivery?: number;
+  productbuyid?: string;
 }
 
 export interface DimensionCheckResult {
@@ -39,6 +40,7 @@ export interface AnalysisMetrics {
   colorAccuracy?: number; // 0 to 100
   damageDetected?: boolean;
   damageDetails?: string;
+  crossVerifiedDefects?: any[];
   tagIntact?: boolean;
   dimensionCheck?: DimensionCheckResult;
   factoryImage?: string; // Pre-captured factory image URL
@@ -72,4 +74,52 @@ export interface ReturnAssessment {
   status: "Approved (Auto-Refund)" | "Flagged (Manual Review)" | "Rejected" | "Approved (Sent to Manufacturer)";
   createdAt: string;
   daysSinceDelivery?: number;
+  productbuyid?: string;
+}
+
+export interface HealthCardReturnEntry {
+  id: number;
+  reason: string;
+  count?: number;
+  info?: string;
+}
+
+export interface HealthCardData {
+  id: string;
+  grade: string;
+  confidence: number;
+  returns: HealthCardReturnEntry[];
+  routed: string;
+  manufacturerNote: string;
+  sustainability: string;
+  generatedDate: string;
+  blockchainHash?: string;
+  images?: string[];
+  mismatchScore?: number;
+  productbuyid?: string;
+  respawnOption?: string;
+}
+
+export interface RespawnData {
+  isRespawned: boolean;
+  healthCardId?: string;
+  grade?: string;
+  currentStage?: number;
+  status?: string;
+  productbuyid?: string;
+}
+
+export interface RespawnedItem {
+  id: string; // Internal ID
+  productId: string; // The original product ID
+  productbuyid: string; // The unique buy ID
+  name: string;
+  image: string;
+  price: number;
+  type: string; // e.g. "p2p", "refurb", etc.
+  currentStage: number;
+  status: string;
+  healthCardId?: string;
+  healthCardData?: any; // To hold the embedded HealthCard
+  createdAt: string;
 }

@@ -3,13 +3,19 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Clock, ShieldCheck, Truck, Package, XCircle } from "lucide-react";
+import { Check, ShieldCheck, Package, XCircle } from "lucide-react";
+import HealthCard from "@/components/HealthCard";
+
 
 interface TrackedItem {
   id: string;
   name: string;
   image: string;
   price: number;
+  respawn?: any;
+  healthCardId?: string;
+  healthCardData?: any;
+  productbuyid?: string;
 }
 
 interface RespawnData {
@@ -25,55 +31,76 @@ const TRACKING_STAGES = [
   { id: 5, label: "National / Mfr", desc: "Manufacturer buyback" }
 ];
 
-export default function RespawnTracker() {
+function TrackingCard({ initialData, isPublishedInitial = false }: { initialData: RespawnData, isPublishedInitial?: boolean }) {
   const router = useRouter();
-  const [data, setData] = useState<RespawnData | null>(null);
-  
+  const [data, setData] = useState<RespawnData>(initialData);
   const [currentStage, setCurrentStage] = useState(1);
   const [status, setStatus] = useState<"routing" | "matched" | "fallback" | "declined" | "accepted" | "recycling_form">("routing");
-  
   const [matchDetails, setMatchDetails] = useState<any>(null);
   const [searchRadius, setSearchRadius] = useState("5");
   const [recycleParts, setRecycleParts] = useState({ battery: false, screen: false, casing: false, motherboard: false, other: "" });
+  
+  // Track the generated marketplace ID if it's published
+  const [publishedProductId, setPublishedProductId] = useState<string | null>(isPublishedInitial ? initialData.item.id : null);
 
+  // Restore state from API or localStorage on mount
   useEffect(() => {
-    // Load state from sessionStorage
-    const stored = sessionStorage.getItem("pendingRespawn");
-    if (stored) {
-      setData(JSON.parse(stored));
-    } else {
-      // Fallback dummy data for direct navigation testing
-      setData({
-        item: { id: "sony-wh-1000xm5", name: "Sony WH-1000XM5 Wireless Headphones", image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80", price: 29990 },
-        type: "p2p"
-      });
+    // 1. Prioritize Backend API state if it exists (single source of truth for published items)
+    if (data.item.respawn?.currentStage) {
+      setCurrentStage(data.item.respawn.currentStage);
+      setStatus(data.item.respawn.status || "routing");
+      // matchDetails isn't saved to DB currently, but we can reconstruct it if status is matched
+      if (data.item.respawn.status === "matched") {
+        setMatchDetails({ title: "Customer Matched", desc: "A customer purchased this item.", payout: "Standard" });
+      } else if (data.item.respawn.status === "accepted") {
+        setMatchDetails({ title: "Offer Accepted", desc: "A courier will arrive.", payout: "Standard" });
+      }
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    if (!data) return;
-
-    if (data.type === "donate" || data.type === "recycle" || data.type === "salvage") {
-      if (data.type === "recycle") {
-        setStatus("recycling_form");
-      } else {
-        setStatus("fallback");
-        if (data.type === "donate") {
-          setMatchDetails({ title: "NGO Donation Scheduled", desc: "Matched with Goonj (Sector 45). Thank you for your contribution!", payout: "500 RESPawn Points (2.5x NGO Multiplier)" });
-        } else {
-          setMatchDetails({ title: "Eco-Salvage", desc: "Hardware routed to Haryana Public Library", payout: "200 RESPawn Points" });
+    // 2. Fallback to localStorage (useful for pending items not yet published)
+    const savedState = localStorage.getItem(`respawnState_${data.item.id}`);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        setCurrentStage(parsed.currentStage || 1);
+        setStatus(parsed.status || "routing");
+        setMatchDetails(parsed.matchDetails || null);
+        if (parsed.publishedProductId) {
+          setPublishedProductId(parsed.publishedProductId);
         }
+      } catch (err) {
+        console.error("Failed to parse saved state", err);
       }
     } else {
-      setStatus("routing");
-      setCurrentStage(1);
+      // Default initialization
+      if (data.type === "donate" || data.type === "recycle" || data.type === "salvage") {
+        if (data.type === "recycle") {
+          setStatus("recycling_form");
+        } else {
+          setStatus("fallback");
+          if (data.type === "donate") {
+            setMatchDetails({ title: "NGO Donation Scheduled", desc: "Matched with Goonj (Rajpur Road). Thank you for your contribution!", payout: "500 RESPawn Points (2.5x NGO Multiplier)" });
+          } else {
+            setMatchDetails({ title: "Eco-Salvage", desc: "Hardware routed to Uttarakhand Public Library", payout: "200 RESPawn Points" });
+          }
+        }
+      } else {
+        setStatus("routing");
+        setCurrentStage(1);
+      }
     }
-  }, [data]);
+  }, [data.item.id, data.item.respawn, data.type]);
 
-  const handleRecycleSubmit = () => {
-    setStatus("fallback");
-    setMatchDetails({ title: "E-Waste Processing", desc: "Routed to Green-E Facility based on component selection.", payout: "300 RESPawn Points" });
-  };
+  // Persist state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(`respawnState_${data.item.id}`, JSON.stringify({
+      currentStage,
+      status,
+      matchDetails,
+      publishedProductId
+    }));
+  }, [currentStage, status, matchDetails, publishedProductId, data.item.id]);
 
   let maxStage = 5;
   if (data?.type === "lease") {
@@ -81,11 +108,21 @@ export default function RespawnTracker() {
     else if (data.item.price < 2000) maxStage = 4;
   }
 
-  const handleNextStep = () => {
+  const handleRecycleSubmit = () => {
+    setStatus("fallback");
+    setMatchDetails({ title: "E-Waste Processing", desc: "Routed to Green-E Facility based on component selection.", payout: "300 RESPawn Points" });
+  };
+
+  const handleNextStep = async () => {
+    let newStage = currentStage;
+    let newStatus = status;
+
     if (currentStage < maxStage) {
-      setCurrentStage(prev => prev + 1);
+      newStage = currentStage + 1;
+      setCurrentStage(newStage);
     } else {
-      setStatus("matched");
+      newStatus = "matched";
+      setStatus(newStatus);
       if (data?.type === "lease") {
         setMatchDetails({ 
           title: `Lease Pool Reached (${TRACKING_STAGES[maxStage-1].label})`, 
@@ -100,9 +137,38 @@ export default function RespawnTracker() {
         });
       }
     }
+
+    if (!publishedProductId) {
+      // Create new listing
+      try {
+        const payload = { ...data, currentStage: newStage, status: newStatus };
+        const res = await fetch("/api/respawned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          setPublishedProductId(result.productId);
+        }
+      } catch (err) {
+        console.error("Failed to publish to marketplace", err);
+      }
+    } else {
+      // Update existing listing state
+      try {
+        await fetch("/api/respawned", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: publishedProductId, currentStage: newStage, status: newStatus })
+        });
+      } catch (err) {
+        console.error("Failed to update tracking state on backend", err);
+      }
+    }
   };
 
-  const handleCustomerFound = () => {
+  const handleCustomerFound = async () => {
     setStatus("matched");
     let matchTitle = `Customer Matched at ${TRACKING_STAGES[currentStage-1].label}`;
     let matchDesc = "Return Intercepted! A local customer has purchased this item while it was routing back.";
@@ -117,41 +183,62 @@ export default function RespawnTracker() {
       desc: matchDesc, 
       payout: "₹19,500 (Premium Resale)" 
     });
+
+    if (publishedProductId) {
+      try {
+        await fetch("/api/respawned", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: publishedProductId, currentStage, status: "matched" })
+        });
+      } catch (err) {
+        console.error("Failed to update backend", err);
+      }
+    }
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     setStatus("accepted");
+    if (!publishedProductId) {
+      try {
+        const payload = { ...data, currentStage, status: "accepted" };
+        const res = await fetch("/api/respawned", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (result.status === "success") {
+          setPublishedProductId(result.id);
+        }
+      } catch (err) {
+        console.error("Failed to save respawn product", err);
+      }
+    } else {
+      try {
+        await fetch("/api/respawned", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: publishedProductId, currentStage, status: "accepted" })
+        });
+      } catch (err) {
+        console.error("Failed to update backend", err);
+      }
+    }
   };
 
   const handleDecline = () => {
     setStatus("declined");
-    // Optionally remove session storage and navigate away
-    // sessionStorage.removeItem("pendingRespawn");
   };
 
-  if (!data) return <div style={{ padding: "40px", textAlign: "center" }}>Loading RESPawn Data...</div>;
-
   return (
-    <div className="orders-page" style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", color: "#333", minHeight: "80vh" }}>
-      
-      {/* Breadcrumbs */}
-      <div style={{ fontSize: "12px", color: "#565959", marginBottom: "15px" }}>
-        <Link href="/orders" style={{ color: "#565959", textDecoration: "none" }}>Your Account</Link> › 
-        <Link href="/orders" style={{ color: "#565959", textDecoration: "none" }}> Your Orders</Link> › 
-        <span style={{ color: "#c45500", fontWeight: "bold" }}> RESPawn Returns</span>
-      </div>
-
-      <h1 style={{ fontSize: "24px", fontWeight: "400", marginBottom: "20px" }}>RESPawn Tracking: {data.type.toUpperCase()} Routing</h1>
-
-      {/* Main Card */}
-      <div style={{ border: "1px solid #d5d9d9", borderRadius: "8px", overflow: "hidden", backgroundColor: "#fff", marginBottom: "20px" }}>
-        
+    <div style={{ border: "1px solid #d5d9d9", borderRadius: "8px", overflow: "hidden", backgroundColor: "#fff", marginBottom: "40px", boxShadow: "0 4px 10px rgba(0,0,0,0.05)" }}>
         {/* Card Header */}
         <div style={{ display: "flex", justifyContent: "space-between", backgroundColor: "#f0f2f2", padding: "14px 18px", borderBottom: "1px solid #d5d9d9", fontSize: "14px" }}>
           <div style={{ display: "flex", gap: "30px" }}>
             <div>
-              <div style={{ color: "#565959" }}>ROUTING INITIATED</div>
-              <div>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+              <div style={{ color: "#565959" }}>ROUTING TYPE</div>
+              <div style={{ fontWeight: "700", textTransform: "uppercase" }}>{data.type}</div>
             </div>
             <div>
               <div style={{ color: "#565959" }}>ITEM</div>
@@ -159,30 +246,48 @@ export default function RespawnTracker() {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ color: "#565959" }}>RESPAWN ACTION #</div>
-            <div>RES-{Math.floor(Math.random() * 1000000)}</div>
+            <div style={{ color: "#565959" }}>RESPAWN ID #</div>
+            <div>{data.item.id.replace("respawn-", "").substring(0, 10).toUpperCase() || `RES-${Math.floor(Math.random() * 10000)}`}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ color: "#565959" }}>PRODUCT BUY ID</div>
+            <div style={{ fontFamily: "monospace", color: "#b06000", fontWeight: "700" }}>
+              {data.item.productbuyid || data.item.healthCardData?.productbuyid || "N/A"}
+            </div>
           </div>
         </div>
 
         {/* Card Body */}
         <div style={{ padding: "20px" }}>
           
-          <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
-            <img src={data.item.image} alt={data.item.name} style={{ width: "80px", height: "80px", objectFit: "contain", border: "1px solid #eee", padding: "5px" }} />
-            <div>
-              <h3 style={{ margin: "0 0 10px 0", color: "#0f1111", fontSize: "18px" }}>
-                {status === "routing" ? (data.type === "p2p" ? "Searching for local buyers..." : "Routing to Manufacturer (Scanning for Buyers)...") : 
-                 status === "recycling_form" ? "Awaiting Recycling Details..." :
-                 status === "matched" ? "Match Found! Pending your review." :
-                 status === "fallback" ? "Fallback Logistics Confirmed." :
-                 status === "declined" ? "RESPawn Action Declined." :
-                 "RESPawn Action Accepted!"}
-              </h3>
-              <p style={{ color: "#565959", fontSize: "14px", margin: 0 }}>
-                {data.type === "p2p" ? "Peer-to-Peer Resale Network" : 
-                 data.type === "refurb" ? "Manufacturer Refurbishment Pipeline" :
-                 data.type === "donate" ? "NGO Donation Network" : "Eco-Routing Protocol"}
-              </p>
+          <div style={{ display: "flex", gap: "20px", marginBottom: "30px", flexWrap: "wrap", justifyContent: "space-between" }}>
+            <div style={{ flex: 1, display: "flex", gap: "20px", minWidth: "300px" }}>
+              <img src={data.item.image} alt={data.item.name} style={{ width: "80px", height: "80px", objectFit: "contain", border: "1px solid #eee", padding: "5px", backgroundColor: "#fff" }} />
+              <div>
+                <h3 style={{ margin: "0 0 10px 0", color: "#0f1111", fontSize: "18px" }}>
+                  {status === "routing" ? (data.type === "p2p" ? "Searching for local buyers..." : "Routing to Manufacturer (Scanning for Buyers)...") : 
+                   status === "recycling_form" ? "Awaiting Recycling Details..." :
+                   status === "matched" ? "Match Found! Pending your review." :
+                   status === "fallback" ? "Fallback Logistics Confirmed." :
+                   status === "declined" ? "RESPawn Action Declined." :
+                   "RESPawn Action Accepted!"}
+                </h3>
+                <p style={{ color: "#565959", fontSize: "14px", margin: 0 }}>
+                  {data.type === "p2p" ? "Peer-to-Peer Resale Network" : 
+                   data.type === "refurb" ? "Manufacturer Refurbishment Pipeline" :
+                   data.type === "donate" ? "NGO Donation Network" : 
+                   data.type === "lease" ? "Regional Leasing Pool" : "Eco-Routing Protocol"}
+                </p>
+              </div>
+            </div>
+
+            {/* Health Card display */}
+            <div style={{ width: "350px", maxWidth: "100%" }}>
+              <HealthCard 
+                productId={data.item.id}
+                data={(data.item as any).healthCardData || undefined}
+                healthCardId={(data.item as any).healthCardId || data.item.respawn?.healthCardId}
+              />
             </div>
           </div>
 
@@ -190,11 +295,7 @@ export default function RespawnTracker() {
           {status !== "fallback" && status !== "declined" && status !== "recycling_form" && data.type !== "p2p" && (
             <div style={{ padding: "20px 40px", marginBottom: "30px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", position: "relative" }}>
-                
-                {/* Background Line */}
                 <div style={{ position: "absolute", top: "12px", left: "0", right: "0", height: "4px", backgroundColor: "#f0f2f2", zIndex: 1 }}></div>
-                
-                {/* Active Progress Line */}
                 <div style={{ 
                   position: "absolute", top: "12px", left: "0", height: "4px", backgroundColor: "#007185", zIndex: 2,
                   width: `${((currentStage - 1) / (TRACKING_STAGES.length - 1)) * 100}%`,
@@ -207,7 +308,6 @@ export default function RespawnTracker() {
                   
                   return (
                     <div key={stage.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", zIndex: 3 }}>
-                      {/* Node Circle */}
                       <div style={{ 
                         width: "28px", height: "28px", borderRadius: "50%", 
                         backgroundColor: isPassed || isActive ? "#007185" : "#f0f2f2",
@@ -218,8 +318,6 @@ export default function RespawnTracker() {
                       }}>
                         {isPassed && <Check size={14} color="#fff" strokeWidth={3} />}
                       </div>
-                      
-                      {/* Label */}
                       <div style={{ textAlign: "center", marginTop: "10px", minWidth: "100px" }}>
                         <div style={{ fontSize: "14px", fontWeight: isPassed || isActive ? "700" : "400", color: isPassed || isActive ? "#0f1111" : "#565959" }}>
                           {stage.label}
@@ -243,8 +341,8 @@ export default function RespawnTracker() {
               </h4>
               {data.type !== "p2p" ? (
                 <p style={{ fontSize: "14px", color: "#565959", marginBottom: "15px", marginTop: 0 }}>
-                  Item is currently at <strong>{TRACKING_STAGES[currentStage-1].label}</strong> returning to manufacturer. 
-                  Our AI is continuously scanning for a buyer.
+                  Item is currently at <strong>{TRACKING_STAGES[currentStage-1]?.label || "Next Hub"}</strong>. 
+                  Our AI is continuously scanning for a buyer along the route.
                 </p>
               ) : (
                 <p style={{ fontSize: "14px", color: "#565959", marginBottom: "15px", marginTop: 0 }}>
@@ -284,38 +382,20 @@ export default function RespawnTracker() {
             </div>
           )}
 
-          {/* Recycling Form Display */}
+          {/* Recycling Form */}
           {status === "recycling_form" && (
             <div style={{ padding: "20px", backgroundColor: "#f9f9f9", border: "1px solid #d5d9d9", borderRadius: "8px", marginBottom: "20px" }}>
               <h4 style={{ margin: "0 0 15px 0", color: "#0f1111", fontSize: "16px" }}>Recycling Details Required</h4>
               <p style={{ margin: "0 0 15px 0", fontSize: "14px", color: "#565959" }}>Please specify which components of the <strong>{data.item.name}</strong> are intact and can be recycled:</p>
               
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                  <input type="checkbox" checked={recycleParts.battery} onChange={(e) => setRecycleParts({...recycleParts, battery: e.target.checked})} /> Battery
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                  <input type="checkbox" checked={recycleParts.screen} onChange={(e) => setRecycleParts({...recycleParts, screen: e.target.checked})} /> Display / Screen
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                  <input type="checkbox" checked={recycleParts.casing} onChange={(e) => setRecycleParts({...recycleParts, casing: e.target.checked})} /> Outer Casing / Shell
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                  <input type="checkbox" checked={recycleParts.motherboard} onChange={(e) => setRecycleParts({...recycleParts, motherboard: e.target.checked})} /> Motherboard / Internal Electronics
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="Other (please specify)" 
-                  value={recycleParts.other} 
-                  onChange={(e) => setRecycleParts({...recycleParts, other: e.target.value})}
-                  style={{ padding: "8px", borderRadius: "4px", border: "1px solid #d5d9d9", marginTop: "5px", width: "100%", maxWidth: "300px" }}
-                />
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked={recycleParts.battery} onChange={(e) => setRecycleParts({...recycleParts, battery: e.target.checked})} /> Battery</label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked={recycleParts.screen} onChange={(e) => setRecycleParts({...recycleParts, screen: e.target.checked})} /> Display / Screen</label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked={recycleParts.casing} onChange={(e) => setRecycleParts({...recycleParts, casing: e.target.checked})} /> Outer Casing / Shell</label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}><input type="checkbox" checked={recycleParts.motherboard} onChange={(e) => setRecycleParts({...recycleParts, motherboard: e.target.checked})} /> Motherboard / Internal Electronics</label>
               </div>
 
-              <button 
-                onClick={handleRecycleSubmit} 
-                style={{ padding: "10px 20px", backgroundColor: "#ffd814", border: "1px solid #fcd200", borderRadius: "8px", cursor: "pointer", fontWeight: "600", boxShadow: "0 2px 5px rgba(0,0,0,0.1)" }}
-              >
+              <button onClick={handleRecycleSubmit} style={{ padding: "10px 20px", backgroundColor: "#ffd814", border: "1px solid #fcd200", borderRadius: "8px", cursor: "pointer", fontWeight: "600", boxShadow: "0 2px 5px rgba(0,0,0,0.1)" }}>
                 Submit & Route to Facility
               </button>
             </div>
@@ -360,10 +440,18 @@ export default function RespawnTracker() {
           {status === "accepted" && (
             <div style={{ border: "2px solid #008a00", backgroundColor: "#f0faf0", borderRadius: "8px", padding: "20px", display: "flex", alignItems: "center", gap: "15px", animation: "fadeIn 0.5s ease" }}>
               <Check size={32} color="#008a00" />
-              <div>
+              <div style={{ flex: 1 }}>
                 <h4 style={{ margin: "0 0 5px 0", fontSize: "18px", color: "#008a00" }}>Offer Accepted & Pick-up Scheduled</h4>
                 <p style={{ margin: 0, fontSize: "14px", color: "#333" }}>A courier will arrive within 24 hours to collect the item. Your payout will be processed upon warehouse verification.</p>
               </div>
+              {publishedProductId && (
+                <button 
+                  onClick={() => router.push(`/products/${publishedProductId}`)}
+                  style={{ padding: "10px 15px", backgroundColor: "#fff", border: "1px solid #008a00", color: "#008a00", borderRadius: "8px", cursor: "pointer", fontWeight: "600", whiteSpace: "nowrap" }}
+                >
+                  View in Marketplace
+                </button>
+              )}
             </div>
           )}
 
@@ -374,16 +462,123 @@ export default function RespawnTracker() {
               <div>
                 <h4 style={{ margin: "0 0 5px 0", fontSize: "16px", color: "#333" }}>Offer Declined</h4>
                 <p style={{ margin: 0, fontSize: "14px", color: "#565959" }}>You have rejected this routing path. The item remains in your dashboard for future actions.</p>
-                <Link href="/orders" style={{ display: "inline-block", marginTop: "10px", color: "#007185", textDecoration: "none", fontSize: "14px" }}>
-                  Return to Dashboard
-                </Link>
               </div>
             </div>
           )}
 
         </div>
-      </div>
+    </div>
+  );
+}
+
+export default function RespawnTracker() {
+  const [items, setItems] = useState<RespawnData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      const activeList: RespawnData[] = [];
       
+      // 1. Fetch from new respawned API
+      try {
+        const res = await fetch("/api/respawned");
+        if (res.ok) {
+          const fetchedData = await res.json();
+          const respawnedItems = fetchedData.data || [];
+          
+          respawnedItems.forEach((p: any) => {
+            activeList.push({
+              item: { 
+                id: p.productId, 
+                name: p.name, 
+                image: p.image, 
+                price: p.price, 
+                respawn: {
+                  currentStage: p.currentStage,
+                  status: p.status,
+                  healthCardId: p.healthCardId
+                },
+                healthCardId: p.healthCardId,
+                healthCardData: p.healthCardData,
+                productbuyid: p.productbuyid
+              },
+              type: p.type
+            });
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch respawn items", err);
+      }
+
+      // 2. Fetch pending from sessionStorage (if any)
+      const stored = sessionStorage.getItem("pendingRespawn");
+      if (stored) {
+        const parsed: RespawnData = JSON.parse(stored);
+        
+        // Prevent duplicate if it's already published
+        // The parsed item ID is usually the original ID (e.g., 'sony-wh-1000xm5').
+        // The published ID in the marketplace is 'respawn-sony-wh-1000xm5-timestamp'.
+        // We check if there's already an active item that was derived from this original ID.
+        const alreadyPublished = activeList.some(a => {
+          return a.item.id === parsed.item.id || 
+                 a.item.id === `respawn-${parsed.item.id}` ||
+                 a.item.id.startsWith(`respawn-${parsed.item.id}-`);
+        });
+        
+        if (!alreadyPublished) {
+          activeList.unshift(parsed);
+        }
+      }
+
+      // If activeList is completely empty, provide fallback data for the hackathon demo
+      if (activeList.length === 0) {
+        activeList.push({
+          item: { 
+            id: "sony-wh-1000xm5", 
+            name: "Sony WH-1000XM5 Wireless Headphones", 
+            image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=80", 
+            price: 29990,
+            productbuyid: "pbid-mock-001",
+            healthCardId: "hc-mock-001"
+          },
+          type: "p2p"
+        });
+      }
+
+      setItems(activeList);
+      setLoading(false);
+    }
+
+    fetchDashboard();
+  }, []);
+
+  if (loading) return <div style={{ padding: "40px", textAlign: "center" }}>Loading RESPawn Dashboard...</div>;
+
+  return (
+    <div className="orders-page" style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto", color: "#333", minHeight: "80vh" }}>
+      
+      {/* Breadcrumbs */}
+      <div style={{ fontSize: "12px", color: "#565959", marginBottom: "15px" }}>
+        <Link href="/orders" style={{ color: "#565959", textDecoration: "none" }}>Your Account</Link> › 
+        <span style={{ color: "#c45500", fontWeight: "bold" }}> Active Logistics Tracking</span>
+      </div>
+
+      <h1 style={{ fontSize: "24px", fontWeight: "400", marginBottom: "30px" }}>RESPawn Pipeline Dashboard</h1>
+
+      {items.length === 0 ? (
+        <div style={{ padding: "40px", textAlign: "center", border: "1px dashed #ccc", borderRadius: "8px" }}>
+          No items currently in the logistics pipeline.
+        </div>
+      ) : (
+        items.map((item, index) => (
+          <TrackingCard 
+            key={`${item.item.id}-${index}`} 
+            initialData={item} 
+            isPublishedInitial={item.item.id.startsWith('respawn-')} 
+          />
+        ))
+      )}
+
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }

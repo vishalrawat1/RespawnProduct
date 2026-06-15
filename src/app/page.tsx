@@ -265,7 +265,10 @@ export default function Home() {
             <div className="horizontal-scroll">
               {products.map((p) => (
                 <div key={p.id} className="scroll-item">
-                  <Link href={`/products/${p.id}`}>
+                  <Link href={`/products/${p.id}`} style={{ position: "relative", display: "block" }}>
+                    {p.respawn?.isRespawned && (
+                      <span style={{ position: "absolute", top: "5px", left: "5px", zIndex: 10 }} className="respawn-tag">RESPAWN</span>
+                    )}
                     <div className="scroll-item-img" style={{ backgroundImage: `url(${p.image})` }}></div>
                   </Link>
                   <Link href={`/products/${p.id}`} className="scroll-item-name">{p.name}</Link>
@@ -300,7 +303,10 @@ export default function Home() {
             <div className="horizontal-scroll">
               {products.slice().reverse().map((p) => (
                 <div key={p.id} className="scroll-item" style={{ backgroundColor: "#fff", padding: "10px", borderRadius: "4px" }}>
-                  <Link href={`/products/${p.id}`}>
+                  <Link href={`/products/${p.id}`} style={{ position: "relative", display: "block" }}>
+                    {p.respawn?.isRespawned && (
+                      <span style={{ position: "absolute", top: "5px", left: "5px", zIndex: 10 }} className="respawn-tag">RESPAWN</span>
+                    )}
                     <div className="scroll-item-img" style={{ backgroundImage: `url(${p.image})` }}></div>
                   </Link>
                   <Link href={`/products/${p.id}`} className="scroll-item-name">{p.name}</Link>
@@ -328,7 +334,10 @@ export default function Home() {
               <div className="horizontal-scroll">
                 {recentlyViewed.map((p) => (
                   <div key={p.id} className="scroll-item">
-                    <Link href={`/products/${p.id}`}>
+                    <Link href={`/products/${p.id}`} style={{ position: "relative", display: "block" }}>
+                      {p.respawn?.isRespawned && (
+                        <span style={{ position: "absolute", top: "5px", left: "5px", zIndex: 10 }} className="respawn-tag">RESPAWN</span>
+                      )}
                       <div className="scroll-item-img" style={{ backgroundImage: `url(${p.image})` }}></div>
                     </Link>
                     <Link href={`/products/${p.id}`} className="scroll-item-name">{p.name}</Link>
