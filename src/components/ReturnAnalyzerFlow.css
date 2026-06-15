@@ -1,0 +1,398 @@
+.raf-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  padding: 2rem;
+  font-family: 'Inter', sans-serif;
+  color: #f8fafc;
+}
+
+.raf-glass-panel {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: rafFadeIn 0.5s ease-out;
+}
+
+.raf-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(to right, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  color: transparent;
+  text-align: center;
+}
+
+.raf-subtitle {
+  color: #94a3b8;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+/* Method Selection */
+.raf-category-selector {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.5rem;
+  border-radius: 12px;
+}
+
+.raf-cat-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.raf-cat-btn.active {
+  background: #38bdf8;
+  color: #0f172a;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
+.raf-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.raf-option-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #f8fafc;
+}
+
+.raf-option-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #38bdf8;
+  transform: translateY(-4px);
+}
+
+.raf-icon-wrapper {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+  padding: 1rem;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+}
+
+.raf-option-card h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.raf-option-card p {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* Capture Step */
+.raf-upload-area {
+  border: 2px dashed rgba(56, 189, 248, 0.3);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.raf-upload-area:hover {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.raf-upload-icon {
+  color: #38bdf8;
+  margin-bottom: 1rem;
+}
+
+.raf-hidden-input {
+  display: none;
+}
+
+.raf-preview-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+}
+
+.raf-preview-img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #38bdf8;
+}
+
+.raf-btn-primary, .raf-btn-secondary {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+}
+
+.raf-btn-primary {
+  background: linear-gradient(to right, #38bdf8, #818cf8);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+}
+
+.raf-btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.raf-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+}
+
+.raf-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Analyzing Step */
+.raf-scanner {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 2rem auto;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid rgba(56, 189, 248, 0.3);
+}
+
+.raf-scan-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.raf-scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: #38bdf8;
+  box-shadow: 0 0 15px #38bdf8;
+  animation: rafScan 2s infinite ease-in-out;
+}
+
+.raf-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.raf-progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, #38bdf8, #818cf8);
+  transition: width 0.3s ease;
+}
+
+.raf-status {
+  text-align: center;
+  color: #94a3b8;
+}
+
+/* Result Step */
+.raf-result-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.raf-success-icon {
+  color: #10b981;
+  margin-bottom: 1rem;
+}
+
+.raf-grade-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 16px;
+  margin-bottom: 1rem;
+  border-left: 4px solid #38bdf8;
+}
+
+.raf-grade-badge {
+  display: flex;
+  flex-direction: column;
+}
+
+.raf-grade-badge span {
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.raf-grade-badge strong {
+  font-size: 2.5rem;
+  color: #38bdf8;
+  line-height: 1;
+}
+
+.raf-confidence {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.raf-details-card {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.raf-issue-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #ef4444;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.raf-specifics {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  padding-left: 1.75rem;
+}
+
+.raf-demo-image {
+  margin-bottom: 2rem;
+}
+
+.raf-demo-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.raf-img-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.raf-analyzed-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  opacity: 0.8;
+}
+
+.raf-bounding-box {
+  position: absolute;
+  top: 40%;
+  left: 30%;
+  width: 80px;
+  height: 80px;
+  border: 2px solid #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 4px;
+}
+
+.raf-bb-label {
+  position: absolute;
+  top: -24px;
+  left: -2px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.raf-actions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.raf-grading-legend {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.5rem;
+}
+
+.raf-grading-legend h4 {
+  margin: 0 0 1rem 0;
+  color: #94a3b8;
+}
+
+.raf-grading-legend ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.raf-grading-legend li strong {
+  color: #f8fafc;
+}
+
+/* Animations */
+@keyframes rafFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rafScan {
+  0% { top: 0; }
+  50% { top: calc(100% - 4px); }
+  100% { top: 0; }
+}
