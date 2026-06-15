@@ -69,6 +69,58 @@ export default function HealthCard({ productId, data }: HealthCardProps) {
               </span>
             </div>
           )}
+
+          {data.mismatchScore !== undefined && (
+            <div className="health-detail-item" style={{ marginTop: "8px" }}>
+              <span className="health-detail-label">OpenCV Analysis Mismatch:</span>
+              <span style={{ fontSize: "13px", color: data.mismatchScore > 15 ? "#cc0c39" : "#007600", fontWeight: "bold" }}>
+                {data.mismatchScore}% Deviation
+              </span>
+            </div>
+          )}
+
+          {data.crossVerifiedDefects && data.crossVerifiedDefects.length > 0 && (
+            <div className="health-detail-item" style={{ marginTop: "12px" }}>
+              <span className="health-detail-label">AI Detected Anomalies:</span>
+              <ul style={{ margin: "4px 0 0 0", paddingLeft: "16px", color: "#333" }}>
+                {data.crossVerifiedDefects.map((defect: any, idx: number) => {
+                  const severity = defect.final_severity || defect.severity || "medium";
+                  const type = defect.type || defect.aspect || "Anomaly";
+                  const details = defect.occurrences?.[0]?.details || defect.details || "Anomaly detected";
+                  
+                  return (
+                    <li key={idx} style={{ marginBottom: "6px" }}>
+                      <span style={{ 
+                        backgroundColor: severity === "high" ? "rgba(204,12,57,0.1)" : "rgba(255,153,0,0.1)", 
+                        color: severity === "high" ? "#cc0c39" : "#d97706",
+                        padding: "2px 6px", 
+                        borderRadius: "4px", 
+                        fontSize: "10px",
+                        fontWeight: "bold",
+                        marginRight: "6px"
+                      }}>
+                        {type.replace(/_/g, " ").toUpperCase()}
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#444" }}>
+                        {details}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {data.images && data.images.length > 0 && (
+            <div className="health-detail-item" style={{ marginTop: "12px" }}>
+              <span className="health-detail-label">Verified Uploaded Photos:</span>
+              <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
+                {data.images.map((img, idx) => (
+                  <img key={idx} src={img} alt={`condition-${idx}`} style={{ width: "60px", height: "60px", objectFit: "cover", borderRadius: "4px", border: "1px solid #ccc" }} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

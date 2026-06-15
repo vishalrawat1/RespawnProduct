@@ -1,0 +1,24 @@
+{
+  "product_info": {
+    "category": "clothing",
+    "brand_model": "Test Shirt"
+  },
+  "overall_mismatch_score": 0.0,
+  "mismatch_threshold": 15.0,
+  "status": "Approved (Auto-Refund)",
+  "human_check_required": false,
+  "simulated_human_verification": null,
+  "remarks": "Inspection passed. Mismatch score of 0.0% is within limits.",
+  "cross_verified_defects": [],
+  "per_angle_results": [
+    {
+      "angle": "front_view",
+      "mismatch_score": 0.0,
+      "defects_detected": [],
+      "diff_files": {
+        "color_diff": "respawnassessment/diffs/front_view_color_diff.jpg",
+        "edge_diff": "respawnassessment/diffs/front_view_edges_diff.jpg"
+      }
+    }
+  ]
+}

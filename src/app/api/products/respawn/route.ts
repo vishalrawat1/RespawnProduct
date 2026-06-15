@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
       await productsCollection.insertOne({
         ...newProduct,
-        _id: newProductId
+        _id: newProductId as any
       });
       
       // also just mock health card by adding it to memory map for simplicity in hybrid since the Verify page fetches from HEALTH_CARDS directly
@@ -107,7 +107,7 @@ export async function PUT(req: NextRequest) {
       if (status !== undefined) updateFields["respawn.status"] = status;
 
       await productsCollection.updateOne(
-        { _id: productId },
+        { $or: [{ _id: productId }, { id: productId }] },
         { $set: updateFields }
       );
     }

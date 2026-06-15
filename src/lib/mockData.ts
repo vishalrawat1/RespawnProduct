@@ -27,6 +27,7 @@ export interface HealthCardReturnEntry {
 }
 
 export interface HealthCardData {
+  id?: string;
   grade: string;
   confidence: number;
   returns: HealthCardReturnEntry[];
@@ -35,12 +36,17 @@ export interface HealthCardData {
   sustainability: string;
   generatedDate?: string;
   blockchainHash?: string;
+  images?: string[];
+  mismatchScore?: number;
+  crossVerifiedDefects?: any[];
 }
 
 export interface RespawnData {
   isRespawned: boolean;
   healthCardId?: string;
   grade?: string;
+  currentStage?: number;
+  status?: string;
 }
 
 export interface Product {

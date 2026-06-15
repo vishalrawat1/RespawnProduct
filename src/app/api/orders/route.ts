@@ -95,10 +95,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ordersCollection = db!.collection("orders");
-    await ordersCollection.insertOne({
-      ...newOrder,
-      _id: undefined // Let MongoDB auto-generate ObjectId
-    });
+    await ordersCollection.insertOne(newOrder);
 
     return NextResponse.json({ status: "success", source: "mongodb", order: newOrder });
   } catch (error: any) {

@@ -38,6 +38,7 @@ export interface AnalysisMetrics {
   colorAccuracy?: number; // 0 to 100
   damageDetected?: boolean;
   damageDetails?: string;
+  crossVerifiedDefects?: any[];
   tagIntact?: boolean;
   dimensionCheck?: DimensionCheckResult;
   factoryImage?: string; // Pre-captured factory image URL
@@ -89,10 +90,14 @@ export interface HealthCardData {
   sustainability: string;
   generatedDate: string;
   blockchainHash?: string;
+  images?: string[];
+  mismatchScore?: number;
 }
 
 export interface RespawnData {
   isRespawned: boolean;
   healthCardId?: string;
   grade?: string;
+  currentStage?: number;
+  status?: string;
 }

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ShieldCheck, Package, XCircle } from "lucide-react";
+import HealthCard from "@/components/HealthCard";
+import { HEALTH_CARDS } from "@/lib/mockData";
 
 interface TrackedItem {
   id: string;
@@ -75,9 +77,9 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
         } else {
           setStatus("fallback");
           if (data.type === "donate") {
-            setMatchDetails({ title: "NGO Donation Scheduled", desc: "Matched with Goonj (Sector 45). Thank you for your contribution!", payout: "500 RESPawn Points (2.5x NGO Multiplier)" });
+            setMatchDetails({ title: "NGO Donation Scheduled", desc: "Matched with Goonj (Rajpur Road). Thank you for your contribution!", payout: "500 RESPawn Points (2.5x NGO Multiplier)" });
           } else {
-            setMatchDetails({ title: "Eco-Salvage", desc: "Hardware routed to Haryana Public Library", payout: "200 RESPawn Points" });
+            setMatchDetails({ title: "Eco-Salvage", desc: "Hardware routed to Uttarakhand Public Library", payout: "200 RESPawn Points" });
           }
         }
       } else {
@@ -249,23 +251,35 @@ function TrackingCard({ initialData, isPublishedInitial = false }: { initialData
         {/* Card Body */}
         <div style={{ padding: "20px" }}>
           
-          <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
-            <img src={data.item.image} alt={data.item.name} style={{ width: "80px", height: "80px", objectFit: "contain", border: "1px solid #eee", padding: "5px", backgroundColor: "#fff" }} />
-            <div>
-              <h3 style={{ margin: "0 0 10px 0", color: "#0f1111", fontSize: "18px" }}>
-                {status === "routing" ? (data.type === "p2p" ? "Searching for local buyers..." : "Routing to Manufacturer (Scanning for Buyers)...") : 
-                 status === "recycling_form" ? "Awaiting Recycling Details..." :
-                 status === "matched" ? "Match Found! Pending your review." :
-                 status === "fallback" ? "Fallback Logistics Confirmed." :
-                 status === "declined" ? "RESPawn Action Declined." :
-                 "RESPawn Action Accepted!"}
-              </h3>
-              <p style={{ color: "#565959", fontSize: "14px", margin: 0 }}>
-                {data.type === "p2p" ? "Peer-to-Peer Resale Network" : 
-                 data.type === "refurb" ? "Manufacturer Refurbishment Pipeline" :
-                 data.type === "donate" ? "NGO Donation Network" : 
-                 data.type === "lease" ? "Regional Leasing Pool" : "Eco-Routing Protocol"}
-              </p>
+          <div style={{ display: "flex", gap: "20px", marginBottom: "30px", flexWrap: "wrap", justifyContent: "space-between" }}>
+            <div style={{ flex: 1, display: "flex", gap: "20px", minWidth: "300px" }}>
+              <img src={data.item.image} alt={data.item.name} style={{ width: "80px", height: "80px", objectFit: "contain", border: "1px solid #eee", padding: "5px", backgroundColor: "#fff" }} />
+              <div>
+                <h3 style={{ margin: "0 0 10px 0", color: "#0f1111", fontSize: "18px" }}>
+                  {status === "routing" ? (data.type === "p2p" ? "Searching for local buyers..." : "Routing to Manufacturer (Scanning for Buyers)...") : 
+                   status === "recycling_form" ? "Awaiting Recycling Details..." :
+                   status === "matched" ? "Match Found! Pending your review." :
+                   status === "fallback" ? "Fallback Logistics Confirmed." :
+                   status === "declined" ? "RESPawn Action Declined." :
+                   "RESPawn Action Accepted!"}
+                </h3>
+                <p style={{ color: "#565959", fontSize: "14px", margin: 0 }}>
+                  {data.type === "p2p" ? "Peer-to-Peer Resale Network" : 
+                   data.type === "refurb" ? "Manufacturer Refurbishment Pipeline" :
+                   data.type === "donate" ? "NGO Donation Network" : 
+                   data.type === "lease" ? "Regional Leasing Pool" : "Eco-Routing Protocol"}
+                </p>
+              </div>
+            </div>
+
+            {/* Health Card display */}
+            <div style={{ width: "350px", maxWidth: "100%" }}>
+              <HealthCard 
+                productId={data.item.id} 
+                data={data.item.respawn?.healthCardId && HEALTH_CARDS[data.item.respawn.healthCardId] 
+                        ? HEALTH_CARDS[data.item.respawn.healthCardId] 
+                        : HEALTH_CARDS["hc-1"]} 
+              />
             </div>
           </div>
 
@@ -487,7 +501,11 @@ export default function RespawnTracker() {
         // The parsed item ID is usually the original ID (e.g., 'sony-wh-1000xm5').
         // The published ID in the marketplace is 'respawn-sony-wh-1000xm5-timestamp'.
         // We check if there's already an active item that was derived from this original ID.
-        const alreadyPublished = activeList.some(a => a.item.id.includes(parsed.item.id));
+        const alreadyPublished = activeList.some(a => {
+          return a.item.id === parsed.item.id || 
+                 a.item.id === `respawn-${parsed.item.id}` ||
+                 a.item.id.startsWith(`respawn-${parsed.item.id}-`);
+        });
         
         if (!alreadyPublished) {
           activeList.unshift(parsed);

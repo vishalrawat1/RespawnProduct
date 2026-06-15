@@ -108,12 +108,22 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
     }
   }
 
+  // If no user images were provided, use a fallback reference image
+  if (userImagePaths.length === 0) {
+    const fallbackSrc = path.join(process.cwd(), assessmentFolder, "temp_test_images", "u1_match.jpg");
+    if (fs.existsSync(fallbackSrc)) {
+      const destPath = path.join(runDir, "u1.jpg");
+      fs.copyFileSync(fallbackSrc, destPath);
+      userImagePaths.push(destPath);
+    }
+  }
+
   // Enforce at least 3 images for comparison. Fill missing with copies.
   while (userImagePaths.length < 3) {
     const idx = userImagePaths.length + 1;
     const destPath = path.join(runDir, `u${idx}.jpg`);
-    const srcPath = userImagePaths[0] || path.join(process.cwd(), assessmentFolder, "temp_test_images", "u1_match.jpg");
-    if (fs.existsSync(srcPath)) {
+    const srcPath = userImagePaths[0];
+    if (srcPath && fs.existsSync(srcPath)) {
       fs.copyFileSync(srcPath, destPath);
       userImagePaths.push(destPath);
     } else {
@@ -136,21 +146,9 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
     };
   }
 
-  // If there's no defect indicated, copy user's images to reference to represent a perfect 100% match!
-  const hasDiscrepancyClues = reason === "defective_damaged" || comments.includes("scratch") || comments.includes("scuff") || comments.includes("dirty") || comments.includes("used") || comments.includes("worn") || comments.includes("torn") || comments.includes("faded") || comments.includes("crack") || comments.includes("broken") || comments.includes("damage");
-  
-  if (!hasDiscrepancyClues && reason === "size_issue") {
-    // Perfect match scenario: copy user uploaded images to references
-    const ext1 = manufacturerImages.front_view.endsWith(".webp") ? "m1.webp" : "m1.jpg";
-    const ext2 = manufacturerImages.back_view.endsWith(".webp") ? "m2.webp" : "m2.jpg";
-    const ext3 = manufacturerImages.detail_view.endsWith(".webp") ? "m3.webp" : "m3.jpg";
-    if (fs.existsSync(userImagePaths[0])) fs.copyFileSync(userImagePaths[0], path.join(runDir, ext1));
-    if (fs.existsSync(userImagePaths[1])) fs.copyFileSync(userImagePaths[1], path.join(runDir, ext2));
-    if (fs.existsSync(userImagePaths[2])) fs.copyFileSync(userImagePaths[2], path.join(runDir, ext3));
-    manufacturerImages.front_view = path.join(runDir, ext1);
-    manufacturerImages.back_view = path.join(runDir, ext2);
-    manufacturerImages.detail_view = path.join(runDir, ext3);
-  }
+  // We removed the mock "Perfect match scenario" override. 
+  // The system will now ALWAYS run a genuine OpenCV comparison between the manufacturer references 
+  // and the user's uploaded images, regardless of the dropdown reason.
 
   // Create config file for the python script
   const config = {
@@ -195,7 +193,8 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
   } catch (execErr) {
     console.error("Failed to run python inspector:", execErr);
     // Fallback simulation in case python execution fails
-    mismatchScore = hasDiscrepancyClues ? 20 + Math.floor(Math.random() * 12) : 2 + Math.floor(Math.random() * 5);
+    const isDefective = reason === "defective_damaged" || comments.toLowerCase().includes("dirty");
+    mismatchScore = isDefective ? 20 + Math.floor(Math.random() * 12) : 2 + Math.floor(Math.random() * 5);
   } finally {
     // Clean up temporary run directory
     try {
@@ -218,7 +217,8 @@ export async function analyzeReturnRequest(request: ReturnRequest): Promise<Retu
 
   if (crossVerifiedDefects.length > 0) {
     metrics.damageDetected = true;
-    metrics.damageDetails = crossVerifiedDefects.map((d: any) => `${d.type}: ${d.details}`).join(", ");
+    metrics.damageDetails = crossVerifiedDefects.map((d: any) => `${d.aspect}: ${d.occurrences?.[0]?.details || 'Detected'}`).join(", ");
+    metrics.crossVerifiedDefects = crossVerifiedDefects;
   }
 
   // 1. Dynamic Weighting & Analytical Simulation

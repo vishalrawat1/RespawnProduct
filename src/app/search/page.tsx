@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useApp } from "@/lib/AppContext";
 import { Product } from "@/lib/mockData";
 import { Star, ShieldAlert } from "lucide-react";
+import HealthCard from "@/components/HealthCard";
+import { HEALTH_CARDS } from "@/lib/mockData";
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
@@ -25,6 +27,12 @@ function SearchResultsContent() {
   const [onlyPrime, setOnlyPrime] = useState(false);
   const [onlyRespawn, setOnlyRespawn] = useState(false);
   const [sortOrder, setSortOrder] = useState("featured");
+  const [visibleHealthCards, setVisibleHealthCards] = useState<Record<string, boolean>>({});
+
+  const toggleHealthCard = (e: React.MouseEvent, productId: string) => {
+    e.preventDefault();
+    setVisibleHealthCards(prev => ({ ...prev, [productId]: !prev[productId] }));
+  };
 
   // Fetch products based on query and filters
   useEffect(() => {
@@ -309,6 +317,23 @@ function SearchResultsContent() {
                         FREE Delivery by Respawn
                       </div>
                     </div>
+
+                    {p.respawn?.isRespawned && (
+                      <div style={{ padding: "0 15px 10px 15px" }}>
+                        <button 
+                          onClick={(e) => toggleHealthCard(e, p.id)}
+                          style={{ width: "100%", padding: "6px", backgroundColor: "#f2fdff", border: "1px dashed #007185", color: "#007185", borderRadius: "4px", fontSize: "12px", fontWeight: "600", cursor: "pointer", marginBottom: visibleHealthCards[p.id] ? "10px" : "0" }}
+                        >
+                          {visibleHealthCards[p.id] ? "Hide AI Health Card" : "View AI Health Card"}
+                        </button>
+                        {visibleHealthCards[p.id] && (
+                          <HealthCard 
+                            productId={p.id} 
+                            data={p.respawn.healthCardId && HEALTH_CARDS[p.respawn.healthCardId] ? HEALTH_CARDS[p.respawn.healthCardId] : HEALTH_CARDS["hc-1"]} 
+                          />
+                        )}
+                      </div>
+                    )}
 
                     {/* Quick CTAs */}
                     <div className="card-actions">
